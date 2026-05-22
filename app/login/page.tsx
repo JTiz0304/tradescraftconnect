@@ -11,7 +11,16 @@ export default function LoginPage() {
   const handleLogin = async () => {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) { setMessage(error.message); return }
-    window.location.href = '/dashboard'
+    
+    // Check if user has completed onboarding
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: profile } = await supabase.from('profiles').select('user_type').eq('id', user!.id).single()
+    
+    if (profile?.user_type) {
+      window.location.href = '/dashboard'
+    } else {
+      window.location.href = '/onboarding'
+    }
   }
 
   return (
