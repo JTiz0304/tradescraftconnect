@@ -1,31 +1,65 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '@/app/lib/supabase'
+import { useRouter } from 'next/navigation'
+import { supabase } from '../lib/supabase'
 
-export default function SignUpPage() {
+export default function SignupPage() {
+  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [message, setMessage] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  const handleSignUp = async () => {
+  const handleSignup = async () => {
+    setLoading(true)
+    setMessage('')
+
     const { error } = await supabase.auth.signUp({ email, password })
+
+    setLoading(false)
     if (error) { setMessage(error.message); return }
-    setMessage('Check your email to confirm your account, then come back and log in!')
+    router.push('/onboarding')
   }
 
+  const inputClass = "w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 mb-3"
+
   return (
-    <div style={{ maxWidth: 400, margin: '80px auto', fontFamily: 'sans-serif' }}>
-      <h1>Create your account</h1>
-      <p style={{ color: '#888' }}>Just email and password to get started</p>
-      <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={input} />
-      <input placeholder="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} style={input} />
-      <button onClick={handleSignUp} style={btn}>Sign Up</button>
-      {message && <p style={{ marginTop: 16, color: '#f97316' }}>{message}</p>}
-      <p style={{ marginTop: 16 }}>Already have an account? <a href="/login">Log in</a></p>
+    <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center p-6">
+      <div className="w-full max-w-md">
+        <h1 className="text-3xl font-bold text-center mb-2">Create your account</h1>
+        <p className="text-gray-400 text-center mb-8">Join TradesCraftConnect to get started</p>
+
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className={inputClass}
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className={inputClass}
+        />
+
+        <button
+          onClick={handleSignup}
+          disabled={loading}
+          className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition mt-2"
+        >
+          {loading ? 'Creating account...' : 'Sign Up'}
+        </button>
+
+        {message && <p className="text-red-400 text-sm mt-3 text-center">{message}</p>}
+
+        <p className="text-gray-500 text-sm text-center mt-6">
+          Already have an account?{' '}
+          <a href="/login" className="text-orange-400 hover:text-orange-300 transition">Log in</a>
+        </p>
+      </div>
     </div>
   )
 }
-
-const input = { display: 'block', width: '100%', marginBottom: 12, padding: 10, fontSize: 16, boxSizing: 'border-box' as const }
-const btn = { width: '100%', padding: 12, background: '#f97316', color: 'white', border: 'none', fontSize: 16, cursor: 'pointer', borderRadius: 6 }
