@@ -88,7 +88,11 @@ export default function JobsPage() {
         ) : (
           <div className="flex flex-col gap-4">
             {jobs.map(job => (
-              <div key={job.id} className="bg-gray-900 border border-gray-800 hover:border-orange-500 rounded-2xl p-6 transition">
+              <div
+                key={job.id}
+                onClick={() => router.push(`/dashboard/jobs/${job.id}`)}
+                className="bg-gray-900 border border-gray-800 hover:border-orange-500 rounded-2xl p-6 transition cursor-pointer"
+              >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
                     <h2 className="text-lg font-semibold text-white">{job.title}</h2>
