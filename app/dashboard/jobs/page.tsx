@@ -18,9 +18,13 @@ type Job = {
 export default function JobsPage() {
   const router = useRouter()
   const [jobs, setJobs] = useState<Job[]>([])
+  const [filtered, setFiltered] = useState<Job[]>([])
   const [loading, setLoading] = useState(true)
   const [userType, setUserType] = useState('')
   const [userId, setUserId] = useState('')
+  const [search, setSearch] = useState('')
+  const [tradeFilter, setTradeFilter] = useState('all')
+  const [trades, setTrades] = useState<string[]>([])
 
   useEffect(() => {
     const load = async () => {
@@ -41,11 +45,37 @@ export default function JobsPage() {
         .eq('status', 'open')
         .order('created_at', { ascending: false })
 
-      setJobs(jobData ?? [])
+      const jobList = jobData ?? []
+      setJobs(jobList)
+      setFiltered(jobList)
+
+      const uniqueTrades = [...new Set(jobList.map(j => j.trade_type).filter(Boolean))] as string[]
+      setTrades(uniqueTrades.sort())
+
       setLoading(false)
     }
     load()
   }, [])
+
+  useEffect(() => {
+    let results = jobs
+
+    if (tradeFilter !== 'all') {
+      results = results.filter(j => j.trade_type === tradeFilter)
+    }
+
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      results = results.filter(j =>
+        j.title?.toLowerCase().includes(q) ||
+        j.description?.toLowerCase().includes(q) ||
+        j.trade_type?.toLowerCase().includes(q) ||
+        j.location?.toLowerCase().includes(q)
+      )
+    }
+
+    setFiltered(results)
+  }, [search, tradeFilter, jobs])
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-950 text-white">
@@ -56,10 +86,10 @@ export default function JobsPage() {
   return (
     <div className="min-h-screen bg-gray-950 text-white p-8">
       <div className="max-w-3xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-3xl font-bold">Open Jobs</h1>
-            <p className="text-gray-400 mt-1">{jobs.length} open position{jobs.length !== 1 ? 's' : ''}</p>
+            <p className="text-gray-400 mt-1">{filtered.length} of {jobs.length} position{jobs.length !== 1 ? 's' : ''}</p>
           </div>
           <div className="flex gap-3">
             {userType === 'gc_builder' && (
@@ -79,15 +109,44 @@ export default function JobsPage() {
           </div>
         </div>
 
-        {jobs.length === 0 ? (
+        {/* Search + Filter */}
+        <div className="flex gap-3 mb-6 flex-wrap">
+          <input
+            type="text"
+            placeholder="Search jobs by title, trade, location..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="flex-1 min-w-48 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500"
+          />
+          <select
+            value={tradeFilter}
+            onChange={(e) => setTradeFilter(e.target.value)}
+            className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-orange-500"
+          >
+            <option value="all">All Trades</option>
+            {trades.map(trade => (
+              <option key={trade} value={trade}>{trade}</option>
+            ))}
+          </select>
+        </div>
+
+        {filtered.length === 0 ? (
           <div className="bg-gray-900 border border-gray-800 rounded-2xl p-12 text-center">
             <p className="text-4xl mb-4">📋</p>
-            <p className="text-white font-semibold text-lg">No open jobs yet</p>
-            <p className="text-gray-400 mt-1">Check back soon or post the first job!</p>
+            <p className="text-white font-semibold text-lg">No jobs found</p>
+            <p className="text-gray-400 mt-1">Try adjusting your search or filter</p>
+            {(search || tradeFilter !== 'all') && (
+              <button
+                onClick={() => { setSearch(''); setTradeFilter('all') }}
+                className="mt-4 text-orange-400 hover:text-orange-300 text-sm transition"
+              >
+                Clear filters
+              </button>
+            )}
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            {jobs.map(job => (
+            {filtered.map(job => (
               <div
                 key={job.id}
                 onClick={() => router.push(`/dashboard/jobs/${job.id}`)}
