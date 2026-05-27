@@ -64,7 +64,7 @@ export default function GCBuilderDashboard() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <ActionCard title="Post a Job" description="Find skilled tradespeople for your next project" emoji="📋" onClick={() => router.push('/dashboard/post-job')} />
-          <ActionCard title="Browse Professionals" description="Search the trades directory" emoji="🔍" onClick={() => router.push('/dashboard/jobs')} />
+          <ActionCard title="Browse Professionals" description="Search the trades directory" emoji="🔍" onClick={() => router.push('/dashboard/directory')} />
           <ActionCard title="Edit Profile" description="Update your company info and hiring preferences" emoji="✏️" onClick={() => router.push('/dashboard/edit-profile')} />
           <ActionCard title="My Postings" description="View and manage your job listings" emoji="📁" onClick={() => router.push('/dashboard/my-postings')} />
         </div>
