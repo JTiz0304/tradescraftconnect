@@ -37,26 +37,27 @@ export default function JobApplicantsPage() {
 
   useEffect(() => {
     const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
+      const result = await supabase.auth.getUser()
+      const user = result.data.user
       if (!user) { router.push('/login'); return }
 
-      const { data: jobData } = await supabase
+      const jobResult = await supabase
         .from('job_postings')
         .select('id, title, trade_type, location, status')
         .eq('id', id)
         .eq('poster_id', user.id)
         .single()
 
-      if (!jobData) { router.push('/dashboard/my-postings'); return }
-      setJob(jobData)
+      if (!jobResult.data) { router.push('/dashboard/my-postings'); return }
+      setJob(jobResult.data)
 
-      const { data: appData } = await supabase
+      const appResult = await supabase
         .from('job_applications')
         .select('*, profiles(full_name, email, trade, trade_type, location, user_type)')
         .eq('job_id', id)
         .order('created_at', { ascending: false })
 
-      setApplicants(appData ?? [])
+      setApplicants(appResult.data ?? [])
       setLoading(false)
     }
     load()
@@ -75,17 +76,14 @@ export default function JobApplicantsPage() {
           onClick={() => router.push('/dashboard/my-postings')}
           className="text-gray-400 hover:text-white text-sm mb-6 flex items-center gap-1 transition"
         >
-          ← Back to My Postings
+          Back to My Postings
         </button>
 
         <div className="mb-8">
           <h1 className="text-3xl font-bold">{job?.title}</h1>
           <div className="flex gap-3 mt-2 flex-wrap">
             <span className="text-xs bg-gray-800 text-orange-400 px-2 py-1 rounded-lg">{job?.trade_type}</span>
-            <span className="text-xs text-gray-400">📍 {job?.location}</span>
-            <span className={`text-xs px-2 py-1 rounded-lg ${job?.status === 'open' ? 'bg-green-500/10 text-green-400' : 'bg-gray-700 text-gray-400'}`}>
-              {job?.status === 'open' ? '● Open' : '○ Closed'}
-            </span>
+            <span className="text-xs text-gray-400">{job?.location}</span>
           </div>
           <p className="text-gray-400 mt-3">{applicants.length} applicant{applicants.length !== 1 ? 's' : ''}</p>
         </div>
@@ -98,46 +96,45 @@ export default function JobApplicantsPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            {applicants.map(app => (
-              <div key={app.id} className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <p className="font-semibold text-white text-lg">
-                      {app.profiles?.full_name ?? 'Unknown'}
-                    </p>
-                    <div className="flex gap-3 mt-1 flex-wrap">
-                      {(app.profiles?.trade || app.profiles?.trade_type) && (
-                        <span className="text-xs bg-gray-800 text-orange-400 px-2 py-1 rounded-lg">
-                          {app.profiles?.trade || app.profiles?.trade_type}
-                        </span>
-                      )}
-                      {app.profiles?.location && (
-                        <span className="text-xs text-gray-400">📍 {app.profiles.location}</span>
-                      )}
-                      <span className="text-xs text-gray-500 capitalize">
-                        {app.profiles?.user_type?.replace('_', ' ')}
-                      </span>
-                    </div>
-                    {app.message && (
-                      <p className="text-gray-300 text-sm mt-3 leading-relaxed bg-gray-800 rounded-xl p-3">
-                        "{app.message}"
+            {applicants.map(function(app) {
+              return (
+                <div key={app.id} className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <p className="font-semibold text-white text-lg">
+                        {app.profiles?.full_name ?? 'Unknown'}
                       </p>
-                    )}
-                    <p className="text-xs text-gray-600 mt-3">
-                      Applied {new Date(app.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-2 shrink-0">
-                    
-                      href={'mailto:' + app.profiles?.email}
-                      className="text-xs bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg transition text-center"
-                    >
-                      Contact
-                    </a>
+                      <div className="flex gap-3 mt-1 flex-wrap">
+                        {(app.profiles?.trade || app.profiles?.trade_type) && (
+                          <span className="text-xs bg-gray-800 text-orange-400 px-2 py-1 rounded-lg">
+                            {app.profiles?.trade || app.profiles?.trade_type}
+                          </span>
+                        )}
+                        {app.profiles?.location && (
+                          <span className="text-xs text-gray-400">{app.profiles.location}</span>
+                        )}
+                      </div>
+                      {app.message && (
+                        <p className="text-gray-300 text-sm mt-3 leading-relaxed bg-gray-800 rounded-xl p-3">
+                          {app.message}
+                        </p>
+                      )}
+                      <p className="text-xs text-gray-600 mt-3">
+                        Applied {new Date(app.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-2 shrink-0">
+                      <button
+                        onClick={function() { window.location.href = 'mailto:' + app.profiles?.email }}
+                        className="text-xs bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg transition"
+                      >
+                        Contact
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
