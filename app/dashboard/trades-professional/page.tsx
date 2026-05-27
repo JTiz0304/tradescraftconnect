@@ -62,7 +62,7 @@ export default function ProfessionalDashboard() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <ActionCard title="Find Jobs" description="Browse open positions in your trade" emoji="💼" onClick={() => router.push('/dashboard/jobs')} />
-          <ActionCard title="My Applications" description="Track jobs you've applied to" emoji="📄" disabled />
+          <ActionCard title="My Applications" description="Track jobs you've applied to" emoji="📄" onClick={() => router.push('/dashboard/my-applications')} />
           <ActionCard title="Edit Profile" description="Update your trade and location" emoji="✏️" onClick={() => router.push('/dashboard/edit-profile')} />
           <ActionCard title="Directory" description="Connect with GCs and business owners" emoji="📒" disabled />
         </div>

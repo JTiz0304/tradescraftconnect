@@ -7,13 +7,13 @@ import { supabase } from '../../lib/supabase'
 type Profile = {
   full_name: string
   email: string
-  company_name: string
-  hiring_radius: string
-  hire_abroad: boolean
+  business_name: string
+  trade_type: string
+  work_radius: string
   location: string
 }
 
-export default function GCBuilderDashboard() {
+export default function BusinessOwnerDashboard() {
   const router = useRouter()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
@@ -25,7 +25,7 @@ export default function GCBuilderDashboard() {
 
       const { data } = await supabase
         .from('profiles')
-        .select('full_name, email, company_name, hiring_radius, hire_abroad, location')
+        .select('full_name, email, business_name, trade_type, work_radius, location')
         .eq('id', user.id)
         .single()
 
@@ -46,27 +46,27 @@ export default function GCBuilderDashboard() {
       <div className="max-w-3xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-white">
-            Welcome, {profile?.full_name ?? 'Builder'} 👷
+            Welcome, {profile?.full_name ?? 'Business Owner'} 🏢
           </h1>
-          <p className="text-gray-400 mt-1">GC / Builder Dashboard</p>
+          <p className="text-gray-400 mt-1">Business Owner Dashboard</p>
         </div>
 
         <div className="bg-gray-900 rounded-2xl p-6 mb-6 border border-gray-800">
-          <h2 className="text-lg font-semibold text-yellow-400 mb-4">Your Profile</h2>
+          <h2 className="text-lg font-semibold text-blue-400 mb-4">Your Profile</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <InfoRow label="Company" value={profile?.company_name} />
+            <InfoRow label="Business Name" value={profile?.business_name} />
+            <InfoRow label="Trade Type" value={profile?.trade_type} />
             <InfoRow label="Location" value={profile?.location} />
-            <InfoRow label="Hiring Radius" value={profile?.hiring_radius ? `${profile.hiring_radius} miles` : undefined} />
-            <InfoRow label="Hire Abroad" value={profile?.hire_abroad ? 'Yes' : 'No'} />
+            <InfoRow label="Work Radius" value={profile?.work_radius ? `${profile.work_radius} miles` : undefined} />
             <InfoRow label="Email" value={profile?.email} />
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <ActionCard title="Post a Job" description="Find skilled tradespeople for your next project" emoji="📋" onClick={() => router.push('/dashboard/post-job')} />
-          <ActionCard title="Browse Professionals" description="Search the trades directory" emoji="🔍" onClick={() => router.push('/dashboard/jobs')} />
-          <ActionCard title="Edit Profile" description="Update your company info and hiring preferences" emoji="✏️" onClick={() => router.push('/dashboard/edit-profile')} />
-          <ActionCard title="My Postings" description="View and manage your job listings" emoji="📁" disabled />
+          <ActionCard title="Find Work" description="Browse job postings in your area" emoji="🔨" onClick={() => router.push('/dashboard/jobs')} />
+          <ActionCard title="My Applications" description="Track jobs you've applied to" emoji="📄" onClick={() => router.push('/dashboard/my-applications')} />
+          <ActionCard title="Edit Profile" description="Update your business info and trade type" emoji="✏️" onClick={() => router.push('/dashboard/edit-profile')} />
+          <ActionCard title="Directory" description="Connect with GCs and other trades" emoji="📒" disabled />
         </div>
 
         <button
@@ -95,13 +95,13 @@ function ActionCard({ title, description, emoji, disabled, onClick }: {
   return (
     <div
       onClick={!disabled ? onClick : undefined}
-      className={`bg-gray-900 border border-gray-800 rounded-2xl p-5 flex items-start gap-4 ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-yellow-500 cursor-pointer transition'}`}
+      className={`bg-gray-900 border border-gray-800 rounded-2xl p-5 flex items-start gap-4 ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-500 cursor-pointer transition'}`}
     >
       <span className="text-2xl">{emoji}</span>
       <div>
         <p className="font-semibold text-white">{title}</p>
         <p className="text-sm text-gray-400 mt-0.5">{description}</p>
-        {disabled && <p className="text-xs text-yellow-600 mt-1">Coming soon</p>}
+        {disabled && <p className="text-xs text-blue-600 mt-1">Coming soon</p>}
       </div>
     </div>
   )
