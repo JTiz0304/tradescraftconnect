@@ -129,6 +129,12 @@ export default function MyPostingsPage() {
 
                   <div className="flex flex-col gap-2 shrink-0">
                     <button
+                      onClick={() => router.push(`/dashboard/my-postings/${job.id}`)}
+                      className="text-xs bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg transition"
+                    >
+                      Applicants
+                    </button>
+                    <button
                       onClick={() => toggleStatus(job)}
                       className="text-xs border border-gray-700 hover:border-orange-500 text-gray-300 hover:text-orange-400 px-3 py-1.5 rounded-lg transition"
                     >
