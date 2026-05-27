@@ -4,18 +4,21 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../lib/supabase'
 
-export default function LoginPage() {
+export default function UpdatePasswordPage() {
   const router = useRouter()
-  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const handleLogin = async () => {
+  const handleUpdate = async () => {
+    if (password !== confirm) { setMessage('Passwords do not match.'); return }
+    if (password.length < 6) { setMessage('Password must be at least 6 characters.'); return }
+
     setLoading(true)
     setMessage('')
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { error } = await supabase.auth.updateUser({ password })
 
     setLoading(false)
     if (error) { setMessage(error.message); return }
@@ -27,44 +30,34 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center p-6">
       <div className="w-full max-w-md">
-        <h1 className="text-3xl font-bold text-center mb-2">Welcome back</h1>
-        <p className="text-gray-400 text-center mb-8">Log in to your TradesCraftConnect account</p>
+        <h1 className="text-3xl font-bold text-center mb-2">Set new password</h1>
+        <p className="text-gray-400 text-center mb-8">Choose a strong password for your account</p>
 
         <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          type="password"
+          placeholder="New Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
           className={inputClass}
         />
         <input
           type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+          placeholder="Confirm New Password"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleUpdate()}
           className={inputClass}
         />
 
         <button
-          onClick={handleLogin}
+          onClick={handleUpdate}
           disabled={loading}
           className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition mt-2"
         >
-          {loading ? 'Logging in...' : 'Log In'}
+          {loading ? 'Updating...' : 'Update Password'}
         </button>
 
         {message && <p className="text-red-400 text-sm mt-3 text-center">{message}</p>}
-
-        <div className="flex items-center justify-between mt-6">
-          <p className="text-gray-500 text-sm">
-            Don't have an account?{' '}
-            <a href="/signup" className="text-orange-400 hover:text-orange-300 transition">Sign up free</a>
-          </p>
-          <a href="/reset-password" className="text-gray-500 hover:text-orange-400 text-sm transition">
-            Forgot password?
-          </a>
-        </div>
       </div>
     </div>
   )
