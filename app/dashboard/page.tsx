@@ -23,7 +23,7 @@ export default function DashboardRouter() {
       const routes: Record<string, string> = {
         gc_builder: '/dashboard/gc-builder',
         business_owner: '/dashboard/business-owner',
-        professional: '/dashboard/professional',
+        professional: '/dashboard/trades-professional',
         apprentice: '/dashboard/apprentice',
       }
 
