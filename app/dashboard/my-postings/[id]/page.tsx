@@ -114,7 +114,9 @@ export default function JobApplicantsPage() {
                       {app.profiles?.location && (
                         <span className="text-xs text-gray-400">📍 {app.profiles.location}</span>
                       )}
-                      <span className="text-xs text-gray-500 capitalize">{app.profiles?.user_type?.replace('_', ' ')}</span>
+                      <span className="text-xs text-gray-500 capitalize">
+                        {app.profiles?.user_type?.replace('_', ' ')}
+                      </span>
                     </div>
                     {app.message && (
                       <p className="text-gray-300 text-sm mt-3 leading-relaxed bg-gray-800 rounded-xl p-3">
@@ -127,7 +129,7 @@ export default function JobApplicantsPage() {
                   </div>
                   <div className="flex flex-col gap-2 shrink-0">
                     
-                      href={`mailto:${app.profiles?.email}`}
+                      href={'mailto:' + app.profiles?.email}
                       className="text-xs bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg transition text-center"
                     >
                       Contact
