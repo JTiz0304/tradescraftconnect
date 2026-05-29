@@ -23,7 +23,7 @@ export default function JobDetailPage() {
   const [userId, setUserId] = useState('')
   const [alreadyApplied, setAlreadyApplied] = useState(false)
   const [message, setMessage] = useState('')
-  const [note, setNote] = useState('')
+  const [message, setmessage] = useState('')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
 
@@ -59,7 +59,7 @@ export default function JobDetailPage() {
 
     const { error } = await supabase
       .from('job_applications')
-      .insert({ job_id: job.id, applicant_id: userId, note })
+      .insert({ job_id: job.id, applicant_id: userId, message })
 
     if (error) {
       setMessage('Something went wrong. Please try again.')
@@ -163,8 +163,8 @@ export default function JobDetailPage() {
             <h2 className="text-lg font-semibold mb-4">Apply for this job</h2>
             <textarea
               placeholder="Add a short message (optional) — introduce yourself, your experience, availability..."
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
+              value={message}
+              onChange={(e) => setmessage(e.target.value)}
               rows={4}
               className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 mb-4 resize-none"
             />
