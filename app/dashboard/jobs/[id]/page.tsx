@@ -34,14 +34,14 @@ export default function JobDetailPage() {
       setUserId(user.id)
 
       const { data: jobData } = await supabase
-        .from('jobs')
+        .from('job_postings')
         .select('*')
         .eq('id', id)
         .single()
       if (jobData) setJob(jobData)
 
       const { data: existing } = await supabase
-        .from('applications')
+        .from('job_applications')
         .select('id')
         .eq('job_id', id)
         .eq('applicant_id', user.id)
@@ -58,7 +58,7 @@ export default function JobDetailPage() {
     setSubmitting(true)
 
     const { error } = await supabase
-      .from('applications')
+      .from('job_applications')
       .insert({ job_id: job.id, applicant_id: userId, note })
 
     if (error) {
