@@ -22,8 +22,8 @@ export default function JobDetailPage() {
   const [job, setJob] = useState<Job | null>(null)
   const [userId, setUserId] = useState('')
   const [alreadyApplied, setAlreadyApplied] = useState(false)
-  const [message, setMessage] = useState('')
-  const [message, setmessage] = useState('')
+  const [statusMessage, setStatusMessage] = useState('')
+  const [noteText, setNoteText] = useState('')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
 
@@ -59,15 +59,14 @@ export default function JobDetailPage() {
 
     const { error } = await supabase
       .from('job_applications')
-      .insert({ job_id: job.id, applicant_id: userId, message })
+      .insert({ job_id: job.id, applicant_id: userId, message: noteText })
 
     if (error) {
-      setMessage('Something went wrong. Please try again.')
+      setStatusMessage('Something went wrong. Please try again.')
       setSubmitting(false)
       return
     }
 
-    // Fetch applicant profile and poster email, then send notification
     try {
       const { data: applicantProfile } = await supabase
         .from('profiles')
@@ -94,12 +93,11 @@ export default function JobDetailPage() {
         })
       }
     } catch (e) {
-      // Email failed silently — application still went through
       console.error('Email notification failed:', e)
     }
 
     setAlreadyApplied(true)
-    setMessage('Application submitted!')
+    setStatusMessage('Application submitted!')
     setSubmitting(false)
   }
 
@@ -118,10 +116,7 @@ export default function JobDetailPage() {
   return (
     <div className="min-h-screen bg-gray-950 text-white p-6">
       <div className="max-w-2xl mx-auto">
-        <button
-          onClick={() => router.back()}
-          className="text-gray-400 hover:text-white text-sm mb-6 transition"
-        >
+        <button onClick={() => router.back()} className="text-gray-400 hover:text-white text-sm mb-6 transition">
           ← Back
         </button>
 
@@ -132,20 +127,13 @@ export default function JobDetailPage() {
               {job.status}
             </span>
           </div>
-
           <div className="flex gap-3 flex-wrap mb-6">
             <span className="text-xs bg-gray-800 text-orange-400 px-2 py-1 rounded-lg">{job.trade_type}</span>
             <span className="text-xs text-gray-400">📍 {job.location}</span>
             {job.radius && <span className="text-xs text-gray-400">📏 {job.radius}</span>}
           </div>
-
-          {job.description && (
-            <p className="text-gray-300 leading-relaxed">{job.description}</p>
-          )}
-
-          <p className="text-xs text-gray-600 mt-6">
-            Posted {new Date(job.created_at).toLocaleDateString()}
-          </p>
+          {job.description && <p className="text-gray-300 leading-relaxed">{job.description}</p>}
+          <p className="text-xs text-gray-600 mt-6">Posted {new Date(job.created_at).toLocaleDateString()}</p>
         </div>
 
         {job.poster_id === userId ? (
@@ -163,8 +151,8 @@ export default function JobDetailPage() {
             <h2 className="text-lg font-semibold mb-4">Apply for this job</h2>
             <textarea
               placeholder="Add a short message (optional) — introduce yourself, your experience, availability..."
-              value={message}
-              onChange={(e) => setmessage(e.target.value)}
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
               rows={4}
               className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 mb-4 resize-none"
             />
@@ -175,7 +163,7 @@ export default function JobDetailPage() {
             >
               {submitting ? 'Sending...' : 'Submit Application'}
             </button>
-            {message && <p className="text-green-400 text-sm mt-3 text-center">{message}</p>}
+            {statusMessage && <p className="text-green-400 text-sm mt-3 text-center">{statusMessage}</p>}
           </div>
         )}
       </div>
