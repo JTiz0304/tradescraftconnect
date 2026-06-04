@@ -10,6 +10,7 @@ type Profile = {
   business_name: string
   trade_type: string
   work_radius: string
+  avatar_url: string | null
   location: string
 }
 
@@ -25,7 +26,7 @@ export default function BusinessOwnerDashboard() {
 
       const { data } = await supabase
         .from('profiles')
-        .select('full_name, email, business_name, trade_type, work_radius, location')
+        .select('full_name, email, business_name, trade_type, work_radius, location, avatar_url')
         .eq('id', user.id)
         .single()
 
@@ -44,11 +45,21 @@ export default function BusinessOwnerDashboard() {
   return (
     <div className="min-h-screen bg-gray-950 text-white p-8">
       <div className="max-w-3xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white">
-            Welcome, {profile?.full_name ?? 'Business Owner'} 🏢
-          </h1>
-          <p className="text-gray-400 mt-1">Business Owner Dashboard</p>
+        <div className="mb-8 flex items-center gap-4">
+          {profile?.avatar_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={profile.avatar_url}
+              alt="Profile"
+              className="w-16 h-16 rounded-full object-cover border border-gray-700"
+            />
+          )}
+          <div>
+            <h1 className="text-3xl font-bold text-white">
+              Welcome, {profile?.full_name ?? 'Business Owner'} 🏢
+            </h1>
+            <p className="text-gray-400 mt-1">Business Owner Dashboard</p>
+          </div>
         </div>
 
         <div className="bg-gray-900 rounded-2xl p-6 mb-6 border border-gray-800">

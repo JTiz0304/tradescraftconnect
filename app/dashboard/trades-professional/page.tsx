@@ -10,6 +10,7 @@ type Profile = {
   trade: string
   location: string
   work_radius: string
+  avatar_url: string | null
 }
 
 export default function ProfessionalDashboard() {
@@ -24,7 +25,7 @@ export default function ProfessionalDashboard() {
 
       const { data } = await supabase
         .from('profiles')
-        .select('full_name, email, trade, location, work_radius')
+        .select('full_name, email, trade, location, work_radius, avatar_url')
         .eq('id', user.id)
         .single()
 
@@ -43,11 +44,21 @@ export default function ProfessionalDashboard() {
   return (
     <div className="min-h-screen bg-gray-950 text-white p-8">
       <div className="max-w-3xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white">
-            Welcome, {profile?.full_name ?? 'Professional'} 🔧
-          </h1>
-          <p className="text-gray-400 mt-1">Trades Professional Dashboard</p>
+        <div className="mb-8 flex items-center gap-4">
+          {profile?.avatar_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={profile.avatar_url}
+              alt="Profile"
+              className="w-16 h-16 rounded-full object-cover border border-gray-700"
+            />
+          )}
+          <div>
+            <h1 className="text-3xl font-bold text-white">
+              Welcome, {profile?.full_name ?? 'Professional'} 🛠
+            </h1>
+            <p className="text-gray-400 mt-1">Trades Professional Dashboard</p>
+          </div>
         </div>
 
         <div className="bg-gray-900 rounded-2xl p-6 mb-6 border border-gray-800">

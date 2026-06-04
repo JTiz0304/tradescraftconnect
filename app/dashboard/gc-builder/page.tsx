@@ -11,6 +11,7 @@ type Profile = {
   hiring_radius: string
   hire_abroad: boolean
   location: string
+  avatar_url: string | null
 }
 
 export default function GCBuilderDashboard() {
@@ -25,7 +26,7 @@ export default function GCBuilderDashboard() {
 
       const { data } = await supabase
         .from('profiles')
-        .select('full_name, email, company_name, hiring_radius, hire_abroad, location')
+        .select('full_name, email, company_name, hiring_radius, hire_abroad, location, avatar_url')
         .eq('id', user.id)
         .single()
 
@@ -44,19 +45,29 @@ export default function GCBuilderDashboard() {
   return (
     <div className="min-h-screen bg-gray-950 text-white p-8">
       <div className="max-w-3xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white">
-            Welcome, {profile?.full_name ?? 'Builder'} 👷
-          </h1>
-          <p className="text-gray-400 mt-1">GC / Builder Dashboard</p>
-        </div>
+        <div className="mb-8 flex items-center gap-4">
+              {profile?.avatar_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={profile.avatar_url}
+                  alt="Profile"
+                  className="w-16 h-16 rounded-full object-cover border border-gray-700"
+                />
+              )}
+              <div>
+                <h1 className="text-3xl font-bold text-white">
+                  Welcome, {profile?.full_name ?? 'Builder'} 👷
+                </h1>
+                <p className="text-gray-400 mt-1">GC / Builder Dashboard</p>
+              </div>
+            </div>
 
         <div className="bg-gray-900 rounded-2xl p-6 mb-6 border border-gray-800">
           <h2 className="text-lg font-semibold text-yellow-400 mb-4">Your Profile</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <InfoRow label="Company" value={profile?.company_name} />
             <InfoRow label="Location" value={profile?.location} />
-            <InfoRow label="Hiring Radius" value={profile?.hiring_radius ? `${profile.hiring_radius} miles` : undefined} />
+            <InfoRow label="Hiring Radius" value={profile?.hiring_radius} />
             <InfoRow label="Hire Abroad" value={profile?.hire_abroad ? 'Yes' : 'No'} />
             <InfoRow label="Email" value={profile?.email} />
           </div>
