@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import AvatarUploader from '../../components/AvatarUploader'
 import PortfolioUploader from '../../components/PortfolioUploader'
+import CertUploader from '../../components/CertUploader'
 
 export default function EditProfilePage() {
   const router = useRouter()
@@ -154,6 +155,13 @@ export default function EditProfilePage() {
           <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 mt-6">
             <h2 className="text-sm text-gray-400 uppercase tracking-wide mb-4">Portfolio</h2>
             <PortfolioUploader userId={formData.id} />
+          </div>
+        )}
+        {/* Certifications */}
+        {formData.id && (
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 mt-6">
+            <h2 className="text-sm text-gray-400 uppercase tracking-wide mb-4">Licenses & Certifications</h2>
+            <CertUploader userId={formData.id} />
           </div>
         )}
       </div>
