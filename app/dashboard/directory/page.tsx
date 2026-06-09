@@ -14,6 +14,7 @@ type Profile = {
   work_radius: string
   business_name: string
   company_name: string
+  avatar_url: string
 }
 
 const userTypeLabel: Record<string, string> = {
@@ -45,7 +46,7 @@ export default function DirectoryPage() {
 
       const { data } = await supabase
         .from('profiles')
-        .select('id, full_name, user_type, trade, trade_type, location, work_radius, business_name, company_name')
+        .select('id, full_name, user_type, trade, trade_type, location, work_radius, business_name, company_name, avatar_url')
         .not('user_type', 'is', null)
         .order('full_name', { ascending: true })
 
@@ -133,11 +134,25 @@ export default function DirectoryPage() {
             {filtered.map(profile => (
               <div key={profile.id} className="bg-gray-900 border border-gray-800 hover:border-orange-500 rounded-2xl p-5 transition">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1">
-                    <p className="font-semibold text-white text-lg">{profile.full_name ?? '—'}</p>
-                    <span className={`text-xs px-2 py-0.5 rounded-lg mt-1 inline-block ${userTypeColor[profile.user_type] ?? 'text-gray-400 bg-gray-800'}`}>
-                      {userTypeLabel[profile.user_type] ?? profile.user_type}
-                    </span>
+                  <div className="flex items-start gap-3 flex-1">
+                    {profile.avatar_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={profile.avatar_url}
+                        alt={profile.full_name ?? 'Profile'}
+                        className="w-12 h-12 rounded-full object-cover border border-gray-700 flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center text-gray-400 font-semibold flex-shrink-0">
+                        {profile.full_name?.charAt(0)?.toUpperCase() ?? '?'}
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <p className="font-semibold text-white text-lg">{profile.full_name ?? '—'}</p>
+                      <span className={`text-xs px-2 py-0.5 rounded-lg mt-1 inline-block ${userTypeColor[profile.user_type] ?? 'text-gray-400 bg-gray-800'}`}>
+                        {userTypeLabel[profile.user_type] ?? profile.user_type}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
