@@ -39,11 +39,15 @@ export default function ResetPasswordPage() {
         ) : (
           <>
             <h1 className="text-3xl font-bold text-center mb-2">Reset your password</h1>
-            <p className="text-gray-400 text-center mb-8">Enter your email and we'll send you a reset link</p>
+        <p className="text-gray-400 text-center mb-8">Enter your email and we’ll send you a reset link</p>
 
             <input
-              type="email"
-              placeholder="Email"
+          type="email"
+          name="email"
+          placeholder="Email"
+          aria-label="Email"
+          autoComplete="email"
+          required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleReset()}
