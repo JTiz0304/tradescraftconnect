@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
+import { availabilityLabels, verificationLabels } from '../../lib/profile'
 
 type Profile = {
   id: string
@@ -14,6 +15,11 @@ type Profile = {
   business_name: string
   company_name: string
   avatar_url: string
+  availability_status: string
+  years_experience: number | null
+  license_verification_status: string
+  employment_types: string[]
+  seeking_ojt: boolean
 }
 
 const userTypeLabel: Record<string, string> = {
@@ -36,6 +42,7 @@ export default function DirectoryPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
+  const [availabilityFilter, setAvailabilityFilter] = useState('all')
 
   useEffect(() => {
     const load = async () => {
@@ -44,7 +51,7 @@ export default function DirectoryPage() {
 
       const { data } = await supabase
         .from('profiles')
-        .select('id, full_name, user_type, trade_type, location, work_radius, business_name, company_name, avatar_url')
+        .select('id, full_name, user_type, trade_type, location, work_radius, business_name, company_name, avatar_url, availability_status, years_experience, license_verification_status, employment_types, seeking_ojt')
         .not('user_type', 'is', null)
         .order('full_name', { ascending: true })
 
@@ -61,6 +68,10 @@ export default function DirectoryPage() {
       results = results.filter(p => p.user_type === typeFilter)
     }
 
+    if (availabilityFilter !== 'all') {
+      results = results.filter(p => p.availability_status === availabilityFilter)
+    }
+
     if (search.trim()) {
       const q = search.toLowerCase()
       results = results.filter(p =>
@@ -73,7 +84,7 @@ export default function DirectoryPage() {
     }
 
     return results
-  }, [search, typeFilter, profiles])
+  }, [availabilityFilter, search, typeFilter, profiles])
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-950 text-white">
@@ -117,6 +128,16 @@ export default function DirectoryPage() {
             <option value="professional">Professional</option>
             <option value="apprentice">Apprentice</option>
           </select>
+          <select
+            value={availabilityFilter}
+            onChange={(e) => setAvailabilityFilter(e.target.value)}
+            className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-orange-500"
+          >
+            <option value="all">Any Availability</option>
+            <option value="available_now">Available Now</option>
+            <option value="available_soon">Available Soon</option>
+            <option value="not_available">Not Available</option>
+          </select>
         </div>
 
         {filtered.length === 0 ? (
@@ -128,7 +149,11 @@ export default function DirectoryPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {filtered.map(profile => (
-              <div key={profile.id} className="bg-gray-900 border border-gray-800 hover:border-orange-500 rounded-2xl p-5 transition">
+              <button
+                key={profile.id}
+                onClick={() => router.push(`/dashboard/directory/${profile.id}`)}
+                className="bg-gray-900 border border-gray-800 hover:border-orange-500 rounded-2xl p-5 transition text-left"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3 flex-1">
                     {profile.avatar_url ? (
@@ -169,8 +194,33 @@ export default function DirectoryPage() {
                   {profile.work_radius && (
                     <p className="text-sm text-gray-400">📏 {profile.work_radius} mile radius</p>
                   )}
+                  {typeof profile.years_experience === 'number' && (
+                    <p className="text-sm text-gray-400">🧰 {profile.years_experience} years in trade</p>
+                  )}
                 </div>
-              </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {profile.availability_status && profile.availability_status !== 'not_listed' && (
+                    <span className={`text-xs px-2.5 py-1 rounded-full ${
+                      profile.availability_status === 'available_now'
+                        ? 'bg-green-500/10 text-green-400'
+                        : 'bg-gray-800 text-gray-300'
+                    }`}>
+                      {availabilityLabels[profile.availability_status]}
+                    </span>
+                  )}
+                  {profile.license_verification_status === 'verified' && (
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400">
+                      ✓ {verificationLabels.verified}
+                    </span>
+                  )}
+                  {profile.seeking_ojt && (
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-400">
+                      Seeking OJT
+                    </span>
+                  )}
+                </div>
+              </button>
             ))}
           </div>
         )}
