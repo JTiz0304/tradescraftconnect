@@ -11,6 +11,7 @@ type Certification = {
   cert_name: string
   issuing_org: string | null
   expiry_date: string | null
+  verification_status: 'unverified' | 'pending' | 'verified' | 'rejected'
   created_at: string
 }
 
@@ -87,6 +88,7 @@ export default function CertUploader({ userId }: { userId: string }) {
         cert_name: certName.trim(),
         issuing_org: issuingOrg.trim() || null,
         expiry_date: expiryDate || null,
+        verification_status: 'pending',
       })
       .select()
       .single()
@@ -147,7 +149,10 @@ export default function CertUploader({ userId }: { userId: string }) {
           {certs.map(cert => (
             <div key={cert.id} className="bg-gray-800 border border-gray-700 rounded-xl p-4 flex items-center justify-between gap-3">
               <div className="flex-1 min-w-0">
-                <p className="text-white font-medium truncate">{cert.cert_name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-white font-medium truncate">{cert.cert_name}</p>
+                  <VerificationBadge status={cert.verification_status} />
+                </div>
                 <p className="text-sm text-gray-400 truncate">
                   {cert.issuing_org && <span>{cert.issuing_org}</span>}
                   {cert.issuing_org && cert.expiry_date && <span> · </span>}
@@ -218,5 +223,26 @@ export default function CertUploader({ userId }: { userId: string }) {
         </button>
       </div>
     </div>
+  )
+}
+
+function VerificationBadge({ status }: { status: Certification['verification_status'] }) {
+  const styles = {
+    unverified: 'bg-gray-700 text-gray-300',
+    pending: 'bg-yellow-500/10 text-yellow-400',
+    verified: 'bg-green-500/10 text-green-400',
+    rejected: 'bg-red-500/10 text-red-400',
+  }
+  const labels = {
+    unverified: 'Not reviewed',
+    pending: 'Pending',
+    verified: 'Verified',
+    rejected: 'Needs attention',
+  }
+
+  return (
+    <span className={`text-[10px] px-2 py-0.5 rounded-full whitespace-nowrap ${styles[status]}`}>
+      {labels[status]}
+    </span>
   )
 }
