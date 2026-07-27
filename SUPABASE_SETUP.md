@@ -19,5 +19,16 @@ security policies, and storage buckets defined in:
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `RESEND_API_KEY` (only needed for application email notifications)
 
+## Existing TradesCraftConnect project
+
+Do not run the initial schema again on the existing production database. Apply
+only the newer numbered migrations in order:
+
+1. `supabase/migrations/002_profile_verification.sql`
+
+Migration 002 adds profile-completion fields, protects license verification
+status from member self-approval, and allows authenticated members to see
+verified certification metadata.
+
 Never expose the Supabase service-role key in browser code or commit it to this
 repository.
