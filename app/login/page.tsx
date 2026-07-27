@@ -32,14 +32,22 @@ export default function LoginPage() {
 
         <input
           type="email"
+          name="email"
           placeholder="Email"
+          aria-label="Email"
+          autoComplete="email"
+          required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className={inputClass}
         />
         <input
           type="password"
+          name="password"
           placeholder="Password"
+          aria-label="Password"
+          autoComplete="current-password"
+          required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
@@ -58,7 +66,7 @@ export default function LoginPage() {
 
         <div className="flex items-center justify-between mt-6">
           <p className="text-gray-500 text-sm">
-            Don't have an account?{' '}
+            Don’t have an account?{' '}
             <a href="/signup" className="text-orange-400 hover:text-orange-300 transition">Sign up free</a>
           </p>
           <a href="/reset-password" className="text-gray-500 hover:text-orange-400 text-sm transition">
