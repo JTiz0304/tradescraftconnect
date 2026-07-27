@@ -7,7 +7,7 @@ import { supabase } from '../../lib/supabase'
 type Profile = {
   full_name: string
   email: string
-  trade: string
+  trade_type: string
   location: string
   school_program: string
   avatar_url: string | null
@@ -25,7 +25,7 @@ export default function ApprenticeDashboard() {
 
       const { data } = await supabase
         .from('profiles')
-        .select('full_name, email, trade, location, school_program, avatar_url')
+        .select('full_name, email, trade_type, location, school_program, avatar_url')
         .eq('id', user.id)
         .single()
 
@@ -33,7 +33,7 @@ export default function ApprenticeDashboard() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [router])
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-950 text-white">
@@ -65,7 +65,7 @@ export default function ApprenticeDashboard() {
         <div className="bg-gray-900 rounded-2xl p-6 mb-6 border border-gray-800">
           <h2 className="text-lg font-semibold text-purple-400 mb-4">Your Profile</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <InfoRow label="Trade" value={profile?.trade} />
+            <InfoRow label="Trade" value={profile?.trade_type} />
             <InfoRow label="Location" value={profile?.location} />
             <InfoRow label="School / Program" value={profile?.school_program} />
             <InfoRow label="Email" value={profile?.email} />
