@@ -1,6 +1,14 @@
 -- TradesCraftConnect profile completion and verification foundation.
 -- Apply this migration once to the existing Supabase project.
 
+alter table public.certifications
+  add column if not exists verification_status text not null default 'unverified';
+
+alter table public.certifications
+  drop constraint if exists certifications_verification_status_check,
+  add constraint certifications_verification_status_check
+    check (verification_status in ('unverified', 'pending', 'verified', 'rejected'));
+
 alter table public.profiles
   add column if not exists bio text,
   add column if not exists years_experience integer,
@@ -75,4 +83,3 @@ using (
 
 create index if not exists profiles_discovery_idx
   on public.profiles(user_type, availability_status, trade_type);
-
