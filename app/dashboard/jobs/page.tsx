@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 
@@ -18,7 +18,6 @@ type Job = {
 export default function JobsPage() {
   const router = useRouter()
   const [jobs, setJobs] = useState<Job[]>([])
-  const [filtered, setFiltered] = useState<Job[]>([])
   const [loading, setLoading] = useState(true)
   const [userType, setUserType] = useState('')
   const [userId, setUserId] = useState('')
@@ -47,7 +46,6 @@ export default function JobsPage() {
 
       const jobList = jobData ?? []
       setJobs(jobList)
-      setFiltered(jobList)
 
       const uniqueTrades = [...new Set(jobList.map(j => j.trade_type).filter(Boolean))] as string[]
       setTrades(uniqueTrades.sort())
@@ -55,9 +53,9 @@ export default function JobsPage() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [router])
 
-  useEffect(() => {
+  const filtered = useMemo(() => {
     let results = jobs
 
     if (tradeFilter !== 'all') {
@@ -74,7 +72,7 @@ export default function JobsPage() {
       )
     }
 
-    setFiltered(results)
+    return results
   }, [search, tradeFilter, jobs])
 
   if (loading) return (
