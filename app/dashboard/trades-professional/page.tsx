@@ -7,7 +7,7 @@ import { supabase } from '../../lib/supabase'
 type Profile = {
   full_name: string
   email: string
-  trade: string
+  trade_type: string
   location: string
   work_radius: string
   avatar_url: string | null
@@ -25,7 +25,7 @@ export default function ProfessionalDashboard() {
 
       const { data } = await supabase
         .from('profiles')
-        .select('full_name, email, trade, location, work_radius, avatar_url')
+        .select('full_name, email, trade_type, location, work_radius, avatar_url')
         .eq('id', user.id)
         .single()
 
@@ -33,7 +33,7 @@ export default function ProfessionalDashboard() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [router])
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-950 text-white">
@@ -64,7 +64,7 @@ export default function ProfessionalDashboard() {
         <div className="bg-gray-900 rounded-2xl p-6 mb-6 border border-gray-800">
           <h2 className="text-lg font-semibold text-green-400 mb-4">Your Profile</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <InfoRow label="Trade" value={profile?.trade} />
+            <InfoRow label="Trade" value={profile?.trade_type} />
             <InfoRow label="Location" value={profile?.location} />
             <InfoRow label="Work Radius" value={profile?.work_radius ? `${profile.work_radius} miles` : undefined} />
             <InfoRow label="Email" value={profile?.email} />
