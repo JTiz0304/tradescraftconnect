@@ -38,7 +38,7 @@ export default function MyApplicationsPage() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [router])
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-950 text-white">
@@ -93,7 +93,7 @@ export default function MyApplicationsPage() {
                       </span>
                     </div>
                     {app.message && (
-                      <p className="text-gray-400 text-sm mt-3 leading-relaxed line-clamp-2 italic">"{app.message}"</p>
+                      <p className="text-gray-400 text-sm mt-3 leading-relaxed line-clamp-2 italic">“{app.message}”</p>
                     )}
                     <p className="text-xs text-gray-600 mt-3">
                       Applied {new Date(app.created_at).toLocaleDateString()}

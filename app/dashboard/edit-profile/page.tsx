@@ -1,16 +1,33 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import type { ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import AvatarUploader from '../../components/AvatarUploader'
 import PortfolioUploader from '../../components/PortfolioUploader'
 import CertUploader from '../../components/CertUploader'
 
+type Profile = {
+  id: string
+  user_type: 'gc_builder' | 'business_owner' | 'professional' | 'apprentice'
+  full_name: string | null
+  email: string | null
+  location: string | null
+  avatar_url: string | null
+  company_name: string | null
+  business_name: string | null
+  trade_type: string | null
+  hiring_radius: string | null
+  work_radius: string | null
+  school_program: string | null
+  hire_abroad: boolean
+}
+
 export default function EditProfilePage() {
   const router = useRouter()
-  const [profile, setProfile] = useState<any>(null)
-  const [formData, setFormData] = useState<any>({})
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [formData, setFormData] = useState<Partial<Profile>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
@@ -31,18 +48,31 @@ export default function EditProfilePage() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [router])
 
-  const handleChange = (e: any) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })
   }
 
   const handleSave = async () => {
     setSaving(true)
     setMessage('')
+    const allowedChanges = {
+      full_name: formData.full_name ?? null,
+      location: formData.location ?? null,
+      avatar_url: formData.avatar_url ?? null,
+      company_name: formData.company_name ?? null,
+      business_name: formData.business_name ?? null,
+      trade_type: formData.trade_type ?? null,
+      hiring_radius: formData.hiring_radius ?? null,
+      work_radius: formData.work_radius ?? null,
+      school_program: formData.school_program ?? null,
+      hire_abroad: formData.hire_abroad ?? false,
+    }
+
     const { error } = await supabase
       .from('profiles')
-      .update(formData)
+      .update(allowedChanges)
       .eq('id', formData.id)
 
     setSaving(false)
@@ -73,11 +103,13 @@ export default function EditProfilePage() {
 
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
           <h2 className="text-sm text-gray-400 uppercase tracking-wide mb-4">Personal</h2>
-          <AvatarUploader
-  userId={formData.id}
-  currentUrl={formData.avatar_url}
-  onUploaded={(url) => setFormData({ ...formData, avatar_url: url })}
-/>
+          {formData.id && (
+            <AvatarUploader
+              userId={formData.id}
+              currentUrl={formData.avatar_url}
+              onUploaded={(url) => setFormData({ ...formData, avatar_url: url })}
+            />
+          )}
           <input
             name="full_name"
             placeholder="Full Name"

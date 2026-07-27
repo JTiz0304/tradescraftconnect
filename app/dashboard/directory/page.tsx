@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 
@@ -8,7 +8,6 @@ type Profile = {
   id: string
   full_name: string
   user_type: string
-  trade: string
   trade_type: string
   location: string
   work_radius: string
@@ -34,7 +33,6 @@ const userTypeColor: Record<string, string> = {
 export default function DirectoryPage() {
   const router = useRouter()
   const [profiles, setProfiles] = useState<Profile[]>([])
-  const [filtered, setFiltered] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
@@ -46,18 +44,17 @@ export default function DirectoryPage() {
 
       const { data } = await supabase
         .from('profiles')
-        .select('id, full_name, user_type, trade, trade_type, location, work_radius, business_name, company_name, avatar_url')
+        .select('id, full_name, user_type, trade_type, location, work_radius, business_name, company_name, avatar_url')
         .not('user_type', 'is', null)
         .order('full_name', { ascending: true })
 
       setProfiles(data ?? [])
-      setFiltered(data ?? [])
       setLoading(false)
     }
     load()
-  }, [])
+  }, [router])
 
-  useEffect(() => {
+  const filtered = useMemo(() => {
     let results = profiles
 
     if (typeFilter !== 'all') {
@@ -68,7 +65,6 @@ export default function DirectoryPage() {
       const q = search.toLowerCase()
       results = results.filter(p =>
         p.full_name?.toLowerCase().includes(q) ||
-        p.trade?.toLowerCase().includes(q) ||
         p.trade_type?.toLowerCase().includes(q) ||
         p.location?.toLowerCase().includes(q) ||
         p.business_name?.toLowerCase().includes(q) ||
@@ -76,7 +72,7 @@ export default function DirectoryPage() {
       )
     }
 
-    setFiltered(results)
+    return results
   }, [search, typeFilter, profiles])
 
   if (loading) return (
@@ -157,9 +153,9 @@ export default function DirectoryPage() {
                 </div>
 
                 <div className="mt-3 flex flex-col gap-1">
-                  {(profile.trade || profile.trade_type) && (
+                  {profile.trade_type && (
                     <p className="text-sm text-gray-300">
-                      🔧 {profile.trade || profile.trade_type}
+                      🔧 {profile.trade_type}
                     </p>
                   )}
                   {(profile.company_name || profile.business_name) && (

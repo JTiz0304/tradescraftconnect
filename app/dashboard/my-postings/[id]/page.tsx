@@ -13,7 +13,6 @@ type Applicant = {
   profiles: {
     full_name: string
     email: string
-    trade: string
     trade_type: string
     location: string
     user_type: string
@@ -53,7 +52,7 @@ export default function JobApplicantsPage() {
 
       const appResult = await supabase
         .from('job_applications')
-        .select('*, profiles(full_name, email, trade, trade_type, location, user_type)')
+        .select('*, profiles(full_name, email, trade_type, location, user_type)')
         .eq('job_id', id)
         .order('created_at', { ascending: false })
 
@@ -61,7 +60,7 @@ export default function JobApplicantsPage() {
       setLoading(false)
     }
     load()
-  }, [id])
+  }, [id, router])
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-950 text-white">
@@ -105,9 +104,9 @@ export default function JobApplicantsPage() {
                         {app.profiles?.full_name ?? 'Unknown'}
                       </p>
                       <div className="flex gap-3 mt-1 flex-wrap">
-                        {(app.profiles?.trade || app.profiles?.trade_type) && (
+                        {app.profiles?.trade_type && (
                           <span className="text-xs bg-gray-800 text-orange-400 px-2 py-1 rounded-lg">
-                            {app.profiles?.trade || app.profiles?.trade_type}
+                            {app.profiles.trade_type}
                           </span>
                         )}
                         {app.profiles?.location && (

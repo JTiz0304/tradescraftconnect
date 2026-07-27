@@ -35,7 +35,7 @@ export default function MyPostingsPage() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [router])
 
   const toggleStatus = async (job: Job) => {
     const newStatus = job.status === 'open' ? 'closed' : 'open'

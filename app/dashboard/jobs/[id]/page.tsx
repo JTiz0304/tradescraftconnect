@@ -51,7 +51,7 @@ export default function JobDetailPage() {
       setLoading(false)
     }
     load()
-  }, [id])
+  }, [id, router])
 
   const handleApply = async () => {
     if (!job) return
@@ -68,28 +68,15 @@ export default function JobDetailPage() {
     }
 
     try {
-      const { data: applicantProfile } = await supabase
-        .from('profiles')
-        .select('full_name, email')
-        .eq('id', userId)
-        .single()
-
-      const { data: posterProfile } = await supabase
-        .from('profiles')
-        .select('email')
-        .eq('id', job.poster_id)
-        .single()
-
-      if (applicantProfile && posterProfile) {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
         await fetch('/api/send-application-email', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to: posterProfile.email,
-            applicantName: applicantProfile.full_name || 'A user',
-            applicantEmail: applicantProfile.email,
-            jobTitle: job.title,
-          }),
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ jobId: job.id }),
         })
       }
     } catch (e) {
@@ -143,8 +130,8 @@ export default function JobDetailPage() {
           </div>
         ) : alreadyApplied ? (
           <div className="bg-green-500/10 border border-green-500/20 rounded-2xl p-6 text-center">
-            <p className="text-green-400 font-semibold">✓ You've applied to this job</p>
-            <p className="text-gray-400 text-sm mt-1">The poster will be in touch if there's a match.</p>
+            <p className="text-green-400 font-semibold">✓ You’ve applied to this job</p>
+            <p className="text-gray-400 text-sm mt-1">The poster will be in touch if there’s a match.</p>
           </div>
         ) : (
           <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">

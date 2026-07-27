@@ -9,16 +9,23 @@ export default function SignupPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [message, setMessage] = useState('')
+  const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const handleSignup = async () => {
     setLoading(true)
     setMessage('')
+    setSuccess(false)
 
-    const { error } = await supabase.auth.signUp({ email, password })
+    const { data, error } = await supabase.auth.signUp({ email, password })
 
     setLoading(false)
     if (error) { setMessage(error.message); return }
+    if (!data.session) {
+      setSuccess(true)
+      setMessage('Check your email to confirm your account, then log in to finish your profile.')
+      return
+    }
     router.push('/onboarding')
   }
 
@@ -32,14 +39,23 @@ export default function SignupPage() {
 
         <input
           type="email"
+          name="email"
           placeholder="Email"
+          aria-label="Email"
+          autoComplete="email"
+          required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className={inputClass}
         />
         <input
           type="password"
+          name="password"
           placeholder="Password"
+          aria-label="Password"
+          autoComplete="new-password"
+          minLength={8}
+          required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className={inputClass}
@@ -53,7 +69,11 @@ export default function SignupPage() {
           {loading ? 'Creating account...' : 'Sign Up'}
         </button>
 
-        {message && <p className="text-red-400 text-sm mt-3 text-center">{message}</p>}
+        {message && (
+          <p className={`${success ? 'text-green-400' : 'text-red-400'} text-sm mt-3 text-center`}>
+            {message}
+          </p>
+        )}
 
         <p className="text-gray-500 text-sm text-center mt-6">
           Already have an account?{' '}
