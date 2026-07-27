@@ -52,8 +52,8 @@ export default function AvatarUploader({ userId, currentUrl, onUploaded }: Props
 
       setPreview(url)
       onUploaded(url)
-    } catch (err: any) {
-      setError(err.message ?? 'Upload failed.')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Upload failed.')
     } finally {
       setUploading(false)
     }
