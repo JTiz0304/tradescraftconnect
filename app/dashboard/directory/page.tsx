@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
-import { availabilityLabels, verificationLabels } from '../../lib/profile'
+import { availabilityLabels, tradeOptions, verificationLabels } from '../../lib/profile'
 
 type Profile = {
   id: string
@@ -81,7 +81,10 @@ export default function DirectoryPage() {
   }, [router])
 
   const trades = useMemo(() => (
-    [...new Set(profiles.map(profile => profile.trade_type).filter(Boolean) as string[])]
+    [...new Set([
+      ...tradeOptions,
+      ...profiles.map(profile => profile.trade_type).filter(Boolean) as string[],
+    ])]
       .sort((a, b) => a.localeCompare(b))
   ), [profiles])
 
