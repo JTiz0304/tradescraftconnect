@@ -101,18 +101,26 @@ export default function PostJobPage() {
             className={inputClass}
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <input
-            name="radius"
-            placeholder="Hiring radius (e.g. 25 miles)"
-            onChange={handleChange}
-            className={inputClass}
-          />
-          <input
-            name="start_date"
-            type="date"
-            onChange={handleChange}
-            className={inputClass}
-          />
+            <div>
+              <label className="text-sm text-gray-300">Hiring radius</label>
+              <input
+                name="radius"
+                placeholder="e.g. 25 miles"
+                onChange={handleChange}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="text-sm text-gray-300">Preferred start date <span className="text-gray-500">(optional)</span></label>
+              <input
+                name="start_date"
+                type="date"
+                aria-label="Preferred job start date"
+                onChange={handleChange}
+                className={inputClass}
+              />
+              <p className="text-xs text-gray-500 -mt-2 mb-3">When you would like the work to begin.</p>
+            </div>
           </div>
           <input name="pay_range" placeholder="Pay range or project budget (optional)" onChange={handleChange} className={inputClass} />
           <textarea
