@@ -14,6 +14,10 @@ type Job = {
   status: string
   created_at: string
   poster_id: string
+  job_type: string
+  start_date: string | null
+  pay_range: string | null
+  requirements: string | null
 }
 
 export default function JobDetailPage() {
@@ -116,10 +120,23 @@ export default function JobDetailPage() {
           </div>
           <div className="flex gap-3 flex-wrap mb-6">
             <span className="text-xs bg-gray-800 text-orange-400 px-2 py-1 rounded-lg">{job.trade_type}</span>
+            <span className="text-xs bg-gray-800 text-gray-300 px-2 py-1 rounded-lg">{formatJobType(job.job_type)}</span>
             <span className="text-xs text-gray-400">📍 {job.location}</span>
             {job.radius && <span className="text-xs text-gray-400">📏 {job.radius}</span>}
           </div>
+          {(job.start_date || job.pay_range) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+              {job.start_date && <JobInfo label="Preferred start" value={new Date(`${job.start_date}T00:00:00`).toLocaleDateString()} />}
+              {job.pay_range && <JobInfo label="Pay / budget" value={job.pay_range} />}
+            </div>
+          )}
           {job.description && <p className="text-gray-300 leading-relaxed">{job.description}</p>}
+          {job.requirements && (
+            <div className="mt-6">
+              <h2 className="font-semibold">Requirements</h2>
+              <p className="text-gray-300 leading-relaxed whitespace-pre-wrap mt-2">{job.requirements}</p>
+            </div>
+          )}
           <p className="text-xs text-gray-600 mt-6">Posted {new Date(job.created_at).toLocaleDateString()}</p>
         </div>
 
@@ -156,4 +173,24 @@ export default function JobDetailPage() {
       </div>
     </div>
   )
+}
+
+function JobInfo({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-gray-800 rounded-xl p-3">
+      <p className="text-xs text-gray-500 uppercase tracking-wide">{label}</p>
+      <p className="text-sm text-gray-200 mt-1">{value}</p>
+    </div>
+  )
+}
+
+function formatJobType(value?: string | null) {
+  const labels: Record<string, string> = {
+    full_time: 'Full-time',
+    part_time: 'Part-time',
+    contract: 'Contract',
+    project: 'Project / One-time',
+    weekends: 'Weekends',
+  }
+  return labels[value ?? ''] ?? 'Project / One-time'
 }
