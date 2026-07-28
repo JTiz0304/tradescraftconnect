@@ -4,6 +4,7 @@ import { useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
+import { tradeOptions } from '../../lib/profile'
 
 export default function PostJobPage() {
   const router = useRouter()
@@ -13,11 +14,15 @@ export default function PostJobPage() {
     trade_type: '',
     location: '',
     radius: '',
+    job_type: 'project',
+    start_date: '',
+    pay_range: '',
+    requirements: '',
   })
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
 
-  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })
   }
 
@@ -60,12 +65,14 @@ export default function PostJobPage() {
         <p className="text-gray-400 mb-6">Fill in the details to find the right tradesperson</p>
 
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+          <label className="text-sm text-gray-300">Job title</label>
           <input
             name="title"
             placeholder="Job Title (e.g. Plumber needed for bathroom remodel)"
             onChange={handleChange}
             className={inputClass}
           />
+          <label className="text-sm text-gray-300">Scope of work</label>
           <textarea
             name="description"
             placeholder="Job Description — what's the scope of work, timeline, any requirements?"
@@ -73,23 +80,47 @@ export default function PostJobPage() {
             rows={4}
             className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 mb-3 resize-none"
           />
-          <input
-            name="trade_type"
-            placeholder="Trade Type (e.g. Plumbing, Electrical, Framing)"
-            onChange={handleChange}
-            className={inputClass}
-          />
+          <label className="text-sm text-gray-300">Trade needed</label>
+          <select name="trade_type" value={formData.trade_type} onChange={handleChange} className={inputClass}>
+            <option value="">Select a trade</option>
+            {tradeOptions.map(trade => <option key={trade} value={trade}>{trade}</option>)}
+          </select>
+          <label className="text-sm text-gray-300">Work arrangement</label>
+          <select name="job_type" value={formData.job_type} onChange={handleChange} className={inputClass}>
+            <option value="project">Project / One-time</option>
+            <option value="full_time">Full-time</option>
+            <option value="part_time">Part-time</option>
+            <option value="contract">Contract</option>
+            <option value="weekends">Weekends</option>
+          </select>
+          <label className="text-sm text-gray-300">Location</label>
           <input
             name="location"
             placeholder="Location (e.g. Miami, FL)"
             onChange={handleChange}
             className={inputClass}
           />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <input
             name="radius"
-            placeholder="Hiring Radius (e.g. 25 miles)"
+            placeholder="Hiring radius (e.g. 25 miles)"
             onChange={handleChange}
             className={inputClass}
+          />
+          <input
+            name="start_date"
+            type="date"
+            onChange={handleChange}
+            className={inputClass}
+          />
+          </div>
+          <input name="pay_range" placeholder="Pay range or project budget (optional)" onChange={handleChange} className={inputClass} />
+          <textarea
+            name="requirements"
+            placeholder="Requirements — license, tools, experience, schedule..."
+            onChange={handleChange}
+            rows={3}
+            className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 mb-3 resize-none"
           />
 
           <button
