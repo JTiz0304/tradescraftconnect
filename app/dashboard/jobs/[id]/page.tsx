@@ -26,6 +26,7 @@ export default function JobDetailPage() {
   const [job, setJob] = useState<Job | null>(null)
   const [userId, setUserId] = useState('')
   const [alreadyApplied, setAlreadyApplied] = useState(false)
+  const [applicationStatus, setApplicationStatus] = useState('')
   const [statusMessage, setStatusMessage] = useState('')
   const [noteText, setNoteText] = useState('')
   const [loading, setLoading] = useState(true)
@@ -46,11 +47,14 @@ export default function JobDetailPage() {
 
       const { data: existing } = await supabase
         .from('job_applications')
-        .select('id')
+        .select('id, status')
         .eq('job_id', id)
         .eq('applicant_id', user.id)
         .single()
-      if (existing) setAlreadyApplied(true)
+      if (existing) {
+        setAlreadyApplied(true)
+        setApplicationStatus(existing.status)
+      }
 
       setLoading(false)
     }
@@ -88,6 +92,7 @@ export default function JobDetailPage() {
     }
 
     setAlreadyApplied(true)
+    setApplicationStatus('new')
     setStatusMessage('Application submitted!')
     setSubmitting(false)
   }
@@ -146,9 +151,10 @@ export default function JobDetailPage() {
             <p className="text-gray-400 text-sm mt-1">You can manage it from My Postings.</p>
           </div>
         ) : alreadyApplied ? (
-          <div className="bg-green-500/10 border border-green-500/20 rounded-2xl p-6 text-center">
+          <div className={`${applicationStatusStyle(applicationStatus)} border rounded-2xl p-6 text-center`}>
             <p className="text-green-400 font-semibold">✓ You’ve applied to this job</p>
-            <p className="text-gray-400 text-sm mt-1">The poster will be in touch if there’s a match.</p>
+            <p className="text-white font-semibold text-lg mt-3">Application status: {formatApplicationStatus(applicationStatus)}</p>
+            <p className="text-gray-400 text-sm mt-1">Your status will update here as the employer reviews your application.</p>
           </div>
         ) : (
           <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
@@ -193,4 +199,26 @@ function formatJobType(value?: string | null) {
     weekends: 'Weekends',
   }
   return labels[value ?? ''] ?? 'Project / One-time'
+}
+
+function formatApplicationStatus(status: string) {
+  const labels: Record<string, string> = {
+    pending: 'New',
+    accepted: 'Hired',
+    rejected: 'Declined',
+    new: 'New',
+    reviewing: 'Reviewing',
+    interviewing: 'Interviewing',
+    hired: 'Hired',
+    declined: 'Declined',
+  }
+  return labels[status] ?? 'New'
+}
+
+function applicationStatusStyle(status: string) {
+  if (status === 'hired' || status === 'accepted') return 'bg-green-500/10 border-green-500/30'
+  if (status === 'declined' || status === 'rejected') return 'bg-red-500/10 border-red-500/30'
+  if (status === 'interviewing') return 'bg-purple-500/10 border-purple-500/30'
+  if (status === 'reviewing') return 'bg-yellow-500/10 border-yellow-500/30'
+  return 'bg-blue-500/10 border-blue-500/30'
 }
