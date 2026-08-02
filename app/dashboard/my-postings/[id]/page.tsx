@@ -34,6 +34,7 @@ export default function JobApplicantsPage() {
   const [applicants, setApplicants] = useState<Applicant[]>([])
   const [loading, setLoading] = useState(true)
   const [updatingId, setUpdatingId] = useState('')
+  const [statusMessage, setStatusMessage] = useState('')
 
   useEffect(() => {
     const load = async () => {
@@ -65,15 +66,21 @@ export default function JobApplicantsPage() {
 
   const updateStatus = async (applicationId: string, status: string) => {
     setUpdatingId(applicationId)
-    const { error } = await supabase
+    setStatusMessage('')
+    const { data, error } = await supabase
       .from('job_applications')
       .update({ status })
       .eq('id', applicationId)
+      .select('id, status')
+      .single()
 
-    if (!error) {
+    if (error || !data) {
+      setStatusMessage('The status did not save. Please try again or contact support.')
+    } else {
       setApplicants(current => current.map(app =>
-        app.id === applicationId ? { ...app, status } : app
+        app.id === applicationId ? { ...app, status: data.status } : app
       ))
+      setStatusMessage(`Application status saved as ${data.status.charAt(0).toUpperCase() + data.status.slice(1)}.`)
     }
     setUpdatingId('')
   }
@@ -101,6 +108,11 @@ export default function JobApplicantsPage() {
             <span className="text-xs text-gray-400">{job?.location}</span>
           </div>
           <p className="text-gray-400 mt-3">{applicants.length} applicant{applicants.length !== 1 ? 's' : ''}</p>
+          {statusMessage && (
+            <p className={`text-sm mt-3 ${statusMessage.startsWith('Application status saved') ? 'text-green-400' : 'text-red-400'}`}>
+              {statusMessage}
+            </p>
+          )}
         </div>
 
         {applicants.length === 0 ? (
