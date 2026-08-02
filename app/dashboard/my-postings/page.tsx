@@ -13,6 +13,13 @@ type Job = {
   radius: string
   status: string
   created_at: string
+  applicant_count: number
+  hired_count: number
+}
+
+type ApplicationSummary = {
+  job_id: string
+  status: string
 }
 
 export default function MyPostingsPage() {
@@ -31,7 +38,37 @@ export default function MyPostingsPage() {
         .eq('poster_id', user.id)
         .order('created_at', { ascending: false })
 
-      setJobs(data ?? [])
+      const jobList = data ?? []
+
+      if (jobList.length === 0) {
+        setJobs([])
+        setLoading(false)
+        return
+      }
+
+      const { data: applicationData } = await supabase
+        .from('job_applications')
+        .select('job_id, status')
+        .in('job_id', jobList.map(job => job.id))
+
+      const counts = (applicationData as ApplicationSummary[] | null)?.reduce<Record<string, { applicants: number; hired: number }>>(
+        (summary, application) => {
+          const current = summary[application.job_id] ?? { applicants: 0, hired: 0 }
+          current.applicants += 1
+          if (application.status === 'hired' || application.status === 'accepted') {
+            current.hired += 1
+          }
+          summary[application.job_id] = current
+          return summary
+        },
+        {}
+      ) ?? {}
+
+      setJobs(jobList.map(job => ({
+        ...job,
+        applicant_count: counts[job.id]?.applicants ?? 0,
+        hired_count: counts[job.id]?.hired ?? 0,
+      })))
       setLoading(false)
     }
     load()
@@ -122,6 +159,16 @@ export default function MyPostingsPage() {
                     {job.description && (
                       <p className="text-gray-400 text-sm mt-3 leading-relaxed line-clamp-2">{job.description}</p>
                     )}
+                    <div className="flex items-center gap-2 mt-3 flex-wrap">
+                      <span className="text-xs bg-gray-800 text-gray-300 px-2 py-1 rounded-lg">
+                        👥 {job.applicant_count} applicant{job.applicant_count !== 1 ? 's' : ''}
+                      </span>
+                      {job.hired_count > 0 && (
+                        <span className="text-xs bg-green-500/10 text-green-400 px-2 py-1 rounded-lg">
+                          ✓ {job.hired_count} hired
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-600 mt-3">
                       Posted {new Date(job.created_at).toLocaleDateString()}
                     </p>
@@ -132,7 +179,7 @@ export default function MyPostingsPage() {
                       onClick={() => router.push(`/dashboard/my-postings/${job.id}`)}
                       className="text-xs bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg transition"
                     >
-                      Applicants
+                      View Applicants
                     </button>
                     <button
                       onClick={() => toggleStatus(job)}
