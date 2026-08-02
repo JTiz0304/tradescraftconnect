@@ -33,6 +33,8 @@ export default function JobApplicantsPage() {
   const [job, setJob] = useState<Job | null>(null)
   const [applicants, setApplicants] = useState<Applicant[]>([])
   const [loading, setLoading] = useState(true)
+  const [updatingId, setUpdatingId] = useState('')
+  const [statusMessage, setStatusMessage] = useState('')
 
   useEffect(() => {
     const load = async () => {
@@ -62,6 +64,27 @@ export default function JobApplicantsPage() {
     load()
   }, [id, router])
 
+  const updateStatus = async (applicationId: string, status: string) => {
+    setUpdatingId(applicationId)
+    setStatusMessage('')
+    const { data, error } = await supabase
+      .from('job_applications')
+      .update({ status })
+      .eq('id', applicationId)
+      .select('id, status')
+      .single()
+
+    if (error || !data) {
+      setStatusMessage('The status did not save. Please try again or contact support.')
+    } else {
+      setApplicants(current => current.map(app =>
+        app.id === applicationId ? { ...app, status: data.status } : app
+      ))
+      setStatusMessage(`Application status saved as ${data.status.charAt(0).toUpperCase() + data.status.slice(1)}.`)
+    }
+    setUpdatingId('')
+  }
+
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-950 text-white">
       <p className="animate-pulse text-gray-400">Loading applicants...</p>
@@ -85,6 +108,11 @@ export default function JobApplicantsPage() {
             <span className="text-xs text-gray-400">{job?.location}</span>
           </div>
           <p className="text-gray-400 mt-3">{applicants.length} applicant{applicants.length !== 1 ? 's' : ''}</p>
+          {statusMessage && (
+            <p className={`text-sm mt-3 ${statusMessage.startsWith('Application status saved') ? 'text-green-400' : 'text-red-400'}`}>
+              {statusMessage}
+            </p>
+          )}
         </div>
 
         {applicants.length === 0 ? (
@@ -122,7 +150,26 @@ export default function JobApplicantsPage() {
                         Applied {new Date(app.created_at).toLocaleDateString()}
                       </p>
                     </div>
-                    <div className="flex flex-col gap-2 shrink-0">
+                    <div className="flex flex-col gap-2 shrink-0 min-w-36">
+                      <select
+                        value={app.status}
+                        disabled={updatingId === app.id}
+                        onChange={(event) => updateStatus(app.id, event.target.value)}
+                        className="text-xs bg-gray-800 border border-gray-700 text-white px-3 py-2 rounded-lg"
+                        aria-label={`Application status for ${app.profiles?.full_name ?? 'applicant'}`}
+                      >
+                        <option value="new">New</option>
+                        <option value="reviewing">Reviewing</option>
+                        <option value="interviewing">Interviewing</option>
+                        <option value="hired">Hired</option>
+                        <option value="declined">Declined</option>
+                      </select>
+                      <button
+                        onClick={() => router.push(`/dashboard/directory/${app.applicant_id}`)}
+                        className="text-xs border border-gray-700 hover:border-orange-500 text-white px-3 py-1.5 rounded-lg transition"
+                      >
+                        View Profile
+                      </button>
                       <button
                         onClick={function() { window.location.href = 'mailto:' + app.profiles?.email }}
                         className="text-xs bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg transition"

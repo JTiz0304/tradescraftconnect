@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 
@@ -13,6 +13,13 @@ type Job = {
   radius: string
   status: string
   created_at: string
+  applicant_count: number
+  hired_count: number
+}
+
+type ApplicationSummary = {
+  job_id: string
+  status: string
 }
 
 export default function MyPostingsPage() {
@@ -20,8 +27,7 @@ export default function MyPostingsPage() {
   const [jobs, setJobs] = useState<Job[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    const load = async () => {
+  const load = useCallback(async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
 
@@ -31,11 +37,64 @@ export default function MyPostingsPage() {
         .eq('poster_id', user.id)
         .order('created_at', { ascending: false })
 
-      setJobs(data ?? [])
+      const jobList = data ?? []
+
+      if (jobList.length === 0) {
+        setJobs([])
+        setLoading(false)
+        return
+      }
+
+      const jobIds = jobList.map(job => job.id)
+      const [{ data: applicationData }, { data: hiredApplicationData }] = await Promise.all([
+        supabase
+          .from('job_applications')
+          .select('job_id, status')
+          .in('job_id', jobIds),
+        supabase
+          .from('job_applications')
+          .select('job_id')
+          .in('job_id', jobIds)
+          .in('status', ['hired', 'accepted']),
+      ])
+
+      const counts = (applicationData as ApplicationSummary[] | null)?.reduce<Record<string, { applicants: number; hired: number }>>(
+        (summary, application) => {
+          const current = summary[application.job_id] ?? { applicants: 0, hired: 0 }
+          current.applicants += 1
+          summary[application.job_id] = current
+          return summary
+        },
+        {}
+      ) ?? {}
+
+      hiredApplicationData?.forEach(application => {
+        const current = counts[application.job_id] ?? { applicants: 0, hired: 0 }
+        current.hired += 1
+        counts[application.job_id] = current
+      })
+
+      setJobs(jobList.map(job => ({
+        ...job,
+        applicant_count: counts[job.id]?.applicants ?? 0,
+        hired_count: counts[job.id]?.hired ?? 0,
+      })))
       setLoading(false)
-    }
-    load()
   }, [router])
+
+  useEffect(() => {
+    const initialLoad = window.setTimeout(load, 0)
+
+    const refreshWhenReturning = () => load()
+    window.addEventListener('focus', refreshWhenReturning)
+    window.addEventListener('pageshow', refreshWhenReturning)
+
+    return () => {
+      window.clearTimeout(initialLoad)
+      window.removeEventListener('focus', refreshWhenReturning)
+      window.removeEventListener('pageshow', refreshWhenReturning)
+    }
+  }, [load])
 
   const toggleStatus = async (job: Job) => {
     const newStatus = job.status === 'open' ? 'closed' : 'open'
@@ -122,6 +181,16 @@ export default function MyPostingsPage() {
                     {job.description && (
                       <p className="text-gray-400 text-sm mt-3 leading-relaxed line-clamp-2">{job.description}</p>
                     )}
+                    <div className="flex items-center gap-2 mt-3 flex-wrap">
+                      <span className="text-xs bg-gray-800 text-gray-300 px-2 py-1 rounded-lg">
+                        👥 {job.applicant_count} applicant{job.applicant_count !== 1 ? 's' : ''}
+                      </span>
+                      {job.hired_count > 0 && (
+                        <span className="text-xs bg-green-500/10 text-green-400 px-2 py-1 rounded-lg">
+                          ✓ {job.hired_count} hired
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-600 mt-3">
                       Posted {new Date(job.created_at).toLocaleDateString()}
                     </p>
@@ -132,7 +201,7 @@ export default function MyPostingsPage() {
                       onClick={() => router.push(`/dashboard/my-postings/${job.id}`)}
                       className="text-xs bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg transition"
                     >
-                      Applicants
+                      View Applicants
                     </button>
                     <button
                       onClick={() => toggleStatus(job)}

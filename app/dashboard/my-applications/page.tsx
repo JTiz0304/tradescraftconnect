@@ -100,11 +100,13 @@ export default function MyApplicationsPage() {
                     </p>
                   </div>
                   <span className={`text-xs px-2 py-1 rounded-lg shrink-0 ${
-                    app.status === 'pending' ? 'bg-yellow-500/10 text-yellow-400' :
-                    app.status === 'accepted' ? 'bg-green-500/10 text-green-400' :
+                    app.status === 'new' ? 'bg-blue-500/10 text-blue-400' :
+                    app.status === 'reviewing' ? 'bg-yellow-500/10 text-yellow-400' :
+                    app.status === 'interviewing' ? 'bg-purple-500/10 text-purple-400' :
+                    app.status === 'hired' ? 'bg-green-500/10 text-green-400' :
                     'bg-red-500/10 text-red-400'
                   }`}>
-                    {app.status.charAt(0).toUpperCase() + app.status.slice(1)}
+                    {formatApplicationStatus(app.status)}
                   </span>
                 </div>
               </div>
@@ -114,4 +116,18 @@ export default function MyApplicationsPage() {
       </div>
     </div>
   )
+}
+
+function formatApplicationStatus(status: string) {
+  const labels: Record<string, string> = {
+    pending: 'New',
+    accepted: 'Hired',
+    rejected: 'Declined',
+    new: 'New',
+    reviewing: 'Reviewing',
+    interviewing: 'Interviewing',
+    hired: 'Hired',
+    declined: 'Declined',
+  }
+  return labels[status] ?? status
 }
