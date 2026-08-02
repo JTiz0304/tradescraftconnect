@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 
@@ -27,8 +27,7 @@ export default function MyPostingsPage() {
   const [jobs, setJobs] = useState<Job[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    const load = async () => {
+  const load = useCallback(async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
 
@@ -46,23 +45,34 @@ export default function MyPostingsPage() {
         return
       }
 
-      const { data: applicationData } = await supabase
-        .from('job_applications')
-        .select('job_id, status')
-        .in('job_id', jobList.map(job => job.id))
+      const jobIds = jobList.map(job => job.id)
+      const [{ data: applicationData }, { data: hiredApplicationData }] = await Promise.all([
+        supabase
+          .from('job_applications')
+          .select('job_id, status')
+          .in('job_id', jobIds),
+        supabase
+          .from('job_applications')
+          .select('job_id')
+          .in('job_id', jobIds)
+          .in('status', ['hired', 'accepted']),
+      ])
 
       const counts = (applicationData as ApplicationSummary[] | null)?.reduce<Record<string, { applicants: number; hired: number }>>(
         (summary, application) => {
           const current = summary[application.job_id] ?? { applicants: 0, hired: 0 }
           current.applicants += 1
-          if (application.status === 'hired' || application.status === 'accepted') {
-            current.hired += 1
-          }
           summary[application.job_id] = current
           return summary
         },
         {}
       ) ?? {}
+
+      hiredApplicationData?.forEach(application => {
+        const current = counts[application.job_id] ?? { applicants: 0, hired: 0 }
+        current.hired += 1
+        counts[application.job_id] = current
+      })
 
       setJobs(jobList.map(job => ({
         ...job,
@@ -70,9 +80,21 @@ export default function MyPostingsPage() {
         hired_count: counts[job.id]?.hired ?? 0,
       })))
       setLoading(false)
-    }
-    load()
   }, [router])
+
+  useEffect(() => {
+    const initialLoad = window.setTimeout(load, 0)
+
+    const refreshWhenReturning = () => load()
+    window.addEventListener('focus', refreshWhenReturning)
+    window.addEventListener('pageshow', refreshWhenReturning)
+
+    return () => {
+      window.clearTimeout(initialLoad)
+      window.removeEventListener('focus', refreshWhenReturning)
+      window.removeEventListener('pageshow', refreshWhenReturning)
+    }
+  }, [load])
 
   const toggleStatus = async (job: Job) => {
     const newStatus = job.status === 'open' ? 'closed' : 'open'
