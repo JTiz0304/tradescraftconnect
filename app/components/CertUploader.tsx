@@ -12,6 +12,7 @@ type Certification = {
   issuing_org: string | null
   expiry_date: string | null
   verification_status: 'unverified' | 'pending' | 'verified' | 'rejected'
+  review_notes: string | null
   created_at: string
 }
 
@@ -163,14 +164,19 @@ export default function CertUploader({ userId }: { userId: string }) {
                     </span>
                   )}
                 </p>
+                {cert.verification_status === 'rejected' && cert.review_notes && (
+                  <p className="text-xs text-red-300 mt-1">Reviewer note: {cert.review_notes}</p>
+                )}
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 <button onClick={() => handleView(cert)} className="text-xs border border-gray-600 hover:border-orange-500 text-white px-3 py-1.5 rounded-lg transition">
                   View
                 </button>
-                <button onClick={() => handleDelete(cert)} className="text-xs border border-gray-600 hover:border-red-500 hover:text-red-400 text-gray-400 px-3 py-1.5 rounded-lg transition">
-                  Delete
-                </button>
+                {cert.verification_status !== 'verified' && (
+                  <button onClick={() => handleDelete(cert)} className="text-xs border border-gray-600 hover:border-red-500 hover:text-red-400 text-gray-400 px-3 py-1.5 rounded-lg transition">
+                    Delete
+                  </button>
+                )}
               </div>
             </div>
           ))}
