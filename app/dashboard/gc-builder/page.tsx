@@ -18,6 +18,7 @@ type Profile = {
 export default function GCBuilderDashboard() {
   const router = useRouter()
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -31,7 +32,9 @@ export default function GCBuilderDashboard() {
         .eq('id', user.id)
         .single()
 
+      const { data: adminAccess } = await supabase.rpc('is_admin')
       setProfile(data)
+      setIsAdmin(Boolean(adminAccess))
       setLoading(false)
     }
     load()
@@ -82,6 +85,9 @@ export default function GCBuilderDashboard() {
           <ActionCard title="Browse Professionals" description="Search the trades directory" emoji="🔍" onClick={() => router.push('/dashboard/directory')} />
           <ActionCard title="Edit Profile" description="Update your company info and hiring preferences" emoji="✏️" onClick={() => router.push('/dashboard/edit-profile')} />
           <ActionCard title="My Postings" description="View and manage your job listings" emoji="📁" onClick={() => router.push('/dashboard/my-postings')} />
+          {isAdmin && (
+            <ActionCard title="Certification Review" description="Review member licenses and certifications" emoji="✅" onClick={() => router.push('/dashboard/admin/certifications')} />
+          )}
         </div>
 
         <button
