@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
+import NotificationBell from '../../components/NotificationBell'
 
 type Profile = {
   full_name: string
@@ -45,7 +46,8 @@ export default function GCBuilderDashboard() {
   return (
     <div className="min-h-screen bg-gray-950 text-white p-8">
       <div className="max-w-3xl mx-auto">
-        <div className="mb-8 flex items-center gap-4">
+        <div className="mb-8 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
               {profile?.avatar_url && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -61,6 +63,8 @@ export default function GCBuilderDashboard() {
                 <p className="text-gray-400 mt-1">GC / Builder Dashboard</p>
               </div>
             </div>
+          <NotificationBell />
+        </div>
 
         <div className="bg-gray-900 rounded-2xl p-6 mb-6 border border-gray-800">
           <h2 className="text-lg font-semibold text-yellow-400 mb-4">Your Profile</h2>
