@@ -20,6 +20,9 @@ export default function DashboardRouter() {
 
       if (!profile?.user_type) { router.push('/onboarding'); return }
 
+      const { data: isAdmin } = await supabase.rpc('is_admin')
+      if (isAdmin) { router.push('/dashboard/admin/certifications'); return }
+
       const routes: Record<string, string> = {
         gc_builder: '/dashboard/gc-builder',
         business_owner: '/dashboard/business-owner',
