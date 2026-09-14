@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
-import NotificationBell from '../../../components/NotificationBell'
 
 type ReviewStatus = 'pending' | 'verified' | 'rejected'
 
@@ -121,12 +120,9 @@ export default function CertificationReviewPage() {
             <h1 className="text-3xl font-bold">Certification Review</h1>
             <p className="text-gray-400 mt-1">Review licenses and certifications before displaying a verified badge.</p>
           </div>
-          <div className="flex items-center gap-3">
-            <NotificationBell />
-            <Link href="/dashboard/gc-builder" className="border border-gray-700 hover:border-orange-500 px-4 py-2 rounded-xl text-sm transition text-center">
-              Member Dashboard
-            </Link>
-          </div>
+          <Link href="/dashboard/gc-builder" className="border border-gray-700 hover:border-orange-500 px-4 py-2 rounded-xl text-sm transition text-center">
+            Member Dashboard
+          </Link>
         </div>
 
         <div className="flex flex-wrap gap-2 mb-6">
