@@ -45,7 +45,13 @@ export default function DashboardNav() {
     return () => document.removeEventListener('mousedown', close)
   }, [])
 
-  const dashboardHref = userType ? `/dashboard/${userType.replace('_', '-')}` : '/dashboard'
+  const dashboardRoutes: Record<UserType, string> = {
+    gc_builder: '/dashboard/gc-builder',
+    business_owner: '/dashboard/business-owner',
+    professional: '/dashboard/trades-professional',
+    apprentice: '/dashboard/apprentice',
+  }
+  const dashboardHref = userType ? dashboardRoutes[userType] : '/dashboard'
   const roleItems: NavItem[] = userType === 'gc_builder'
     ? [
         { label: 'My Postings', href: '/dashboard/my-postings' },
