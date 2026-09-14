@@ -80,6 +80,7 @@ export default function BusinessOwnerDashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <ActionCard title="Find Work" description="Browse job postings in your area" emoji="🔨" onClick={() => router.push('/dashboard/jobs')} />
           <ActionCard title="My Applications" description="Track jobs you've applied to" emoji="📄" onClick={() => router.push('/dashboard/my-applications')} />
+          <ActionCard title="Messages" description="Conversations about job applications" emoji="💬" onClick={() => router.push('/dashboard/messages')} />
           <ActionCard title="Edit Profile" description="Update your business info and trade type" emoji="✏️" onClick={() => router.push('/dashboard/edit-profile')} />
           <ActionCard title="Directory" description="Connect with GCs and other trades" emoji="📒" onClick={() => router.push('/dashboard/directory')} />
         </div>
