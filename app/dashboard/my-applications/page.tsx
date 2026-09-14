@@ -109,6 +109,12 @@ export default function MyApplicationsPage() {
                     {formatApplicationStatus(app.status)}
                   </span>
                 </div>
+                <button
+                  onClick={(event) => { event.stopPropagation(); router.push(`/dashboard/messages/${app.id}`) }}
+                  className="mt-4 text-sm border border-orange-500/60 text-orange-400 hover:bg-orange-500 hover:text-white px-4 py-2 rounded-xl transition"
+                >
+                  Message Employer
+                </button>
               </div>
             ))}
           </div>

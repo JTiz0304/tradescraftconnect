@@ -85,6 +85,7 @@ export default function GCBuilderDashboard() {
           <ActionCard title="Browse Professionals" description="Search the trades directory" emoji="🔍" onClick={() => router.push('/dashboard/directory')} />
           <ActionCard title="Edit Profile" description="Update your company info and hiring preferences" emoji="✏️" onClick={() => router.push('/dashboard/edit-profile')} />
           <ActionCard title="My Postings" description="View and manage your job listings" emoji="📁" onClick={() => router.push('/dashboard/my-postings')} />
+          <ActionCard title="Messages" description="Conversations with job applicants" emoji="💬" onClick={() => router.push('/dashboard/messages')} />
           {isAdmin && (
             <ActionCard title="Certification Review" description="Review member licenses and certifications" emoji="✅" onClick={() => router.push('/dashboard/admin/certifications')} />
           )}

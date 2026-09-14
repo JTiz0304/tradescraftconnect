@@ -171,10 +171,10 @@ export default function JobApplicantsPage() {
                         View Profile
                       </button>
                       <button
-                        onClick={function() { window.location.href = 'mailto:' + app.profiles?.email }}
+                        onClick={() => router.push(`/dashboard/messages/${app.id}`)}
                         className="text-xs bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg transition"
                       >
-                        Contact
+                        Message Applicant
                       </button>
                     </div>
                   </div>
