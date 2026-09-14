@@ -79,6 +79,7 @@ export default function ApprenticeDashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <ActionCard title="Find Opportunities" description="Browse apprenticeships and entry-level jobs" emoji="🌱" onClick={() => router.push('/dashboard/jobs')} />
           <ActionCard title="My Applications" description="Track jobs you've applied to" emoji="📄" onClick={() => router.push('/dashboard/my-applications')} />
+          <ActionCard title="Messages" description="Conversations with employers" emoji="💬" onClick={() => router.push('/dashboard/messages')} />
           <ActionCard title="Edit Profile" description="Update your trade and school info" emoji="✏️" onClick={() => router.push('/dashboard/edit-profile')} />
           <ActionCard title="Directory" description="Browse and connect with other trades" emoji="📒" onClick={() => router.push('/dashboard/directory')} />
         </div>
