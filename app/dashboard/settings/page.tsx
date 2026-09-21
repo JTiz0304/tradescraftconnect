@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 
+const passwordResetUrl = 'https://www.tradescraftconnect.com/update-password'
+
 export default function SettingsPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
@@ -21,7 +23,7 @@ export default function SettingsPage() {
 
   const sendReset = async () => {
     setSending(true); setMessage('')
-    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/update-password` })
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: passwordResetUrl })
     setSending(false)
     setMessage(error ? error.message : 'Password reset email sent. Check your inbox.')
   }
