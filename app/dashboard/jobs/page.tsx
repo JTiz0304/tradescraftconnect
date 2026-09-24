@@ -82,9 +82,9 @@ export default function JobsPage() {
   )
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white p-8">
+    <div className="min-h-screen bg-gray-950 text-white p-4 sm:p-8">
       <div className="max-w-3xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold">Open Jobs</h1>
             <p className="text-gray-400 mt-1">{filtered.length} of {jobs.length} position{jobs.length !== 1 ? 's' : ''}</p>
@@ -150,7 +150,7 @@ export default function JobsPage() {
                 onClick={() => router.push(`/dashboard/jobs/${job.id}`)}
                 className="bg-gray-900 border border-gray-800 hover:border-orange-500 rounded-2xl p-6 transition cursor-pointer"
               >
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex-1">
                     <h2 className="text-lg font-semibold text-white">{job.title}</h2>
                     <div className="flex gap-3 mt-1 flex-wrap">

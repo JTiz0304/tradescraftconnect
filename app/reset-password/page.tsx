@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 
+const passwordResetUrl = 'https://www.tradescraftconnect.com/update-password'
+
 export default function ResetPasswordPage() {
   const [email, setEmail] = useState('')
   const [message, setMessage] = useState('')
@@ -14,7 +16,7 @@ export default function ResetPasswordPage() {
     setMessage('')
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'https://www.tradescraftconnect.com/update-password',
+      redirectTo: passwordResetUrl,
     })
 
     setLoading(false)
