@@ -126,9 +126,9 @@ export default function MyPostingsPage() {
   )
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white p-8">
+    <div className="min-h-screen bg-gray-950 text-white p-4 sm:p-8">
       <div className="max-w-3xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold">My Postings</h1>
             <p className="text-gray-400 mt-1">{jobs.length} job{jobs.length !== 1 ? 's' : ''} posted</p>
@@ -165,7 +165,7 @@ export default function MyPostingsPage() {
           <div className="flex flex-col gap-4">
             {jobs.map(job => (
               <div key={job.id} className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 flex-wrap">
                       <h2 className="text-lg font-semibold text-white">{job.title}</h2>

@@ -65,8 +65,10 @@ export default function DashboardNav() {
     { label: 'Dashboard', href: dashboardHref },
     ...roleItems,
     { label: 'Messages', href: '/dashboard/messages' },
+    { label: 'Saved', href: '/dashboard/saved' },
     { label: 'Directory', href: '/dashboard/directory' },
     { label: 'Profile', href: '/dashboard/edit-profile' },
+    { label: 'Settings', href: '/dashboard/settings' },
     ...(isAdmin ? [{ label: 'Certification Review', href: '/dashboard/admin/certifications' }] : []),
   ]
 
@@ -82,7 +84,7 @@ export default function DashboardNav() {
           TradesCraft<span className="text-orange-500">Connect</span>
         </Link>
 
-        <nav className="hidden min-w-0 flex-1 items-center justify-center gap-1 lg:flex" aria-label="Dashboard navigation">
+        <nav className="hidden min-w-0 flex-1 items-center justify-center gap-1 xl:flex" aria-label="Dashboard navigation">
           {items.map(item => (
             <NavLink key={`${item.label}-${item.href}`} item={item} pathname={pathname} unreadMessages={unreadMessages} />
           ))}
@@ -90,8 +92,8 @@ export default function DashboardNav() {
 
         <div className="ml-auto flex shrink-0 items-center gap-2">
           <NotificationBell />
-          <button onClick={signOut} className="hidden rounded-xl border border-gray-700 px-3 py-2 text-sm text-gray-300 transition hover:border-red-500 hover:text-white lg:block">Sign out</button>
-          <div className="relative lg:hidden" ref={panelRef}>
+          <button onClick={signOut} className="hidden rounded-xl border border-gray-700 px-3 py-2 text-sm text-gray-300 transition hover:border-red-500 hover:text-white xl:block">Sign out</button>
+          <div className="relative xl:hidden" ref={panelRef}>
             <button onClick={() => setMobileOpen(open => !open)} className="flex h-11 w-11 items-center justify-center rounded-xl border border-gray-700 bg-gray-900 text-xl" aria-label="Open navigation menu" aria-expanded={mobileOpen}>☰</button>
             {mobileOpen && (
               <div className="absolute right-0 mt-3 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-gray-700 bg-gray-900 shadow-2xl">
