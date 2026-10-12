@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
+import { sendEmailNotification } from '../../../lib/emailNotifications'
 
 type ReportStatus = 'open' | 'reviewing' | 'resolved' | 'dismissed'
 type Report = {
@@ -65,7 +66,11 @@ export default function SafetyReportsPage() {
     setBusy(report.id); setMessage('')
     const { error } = await supabase.rpc('set_member_suspension', { target_user: report.reported_user_id, suspend: true, admin_reason: reason, suspension_expires_at: expires })
     if (error) setMessage(`Account was not suspended: ${error.message}`)
-    else { setMessage('Account suspended for 30 days.'); await review(report, 'resolved') }
+    else {
+      setMessage('Account suspended for 30 days.')
+      void sendEmailNotification('account_suspension', report.reported_user_id)
+      await review(report, 'resolved')
+    }
     setBusy('')
   }
 
@@ -74,6 +79,7 @@ export default function SafetyReportsPage() {
     setBusy(report.id); setMessage('')
     const { error } = await supabase.rpc('set_member_suspension', { target_user: report.reported_user_id, suspend: false, admin_reason: null, suspension_expires_at: null })
     setMessage(error ? `Suspension was not lifted: ${error.message}` : 'Any active suspension for this member was lifted.')
+    if (!error) void sendEmailNotification('account_suspension', report.reported_user_id)
     setBusy('')
   }
 

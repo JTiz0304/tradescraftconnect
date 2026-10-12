@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
+import { sendEmailNotification } from '../../../lib/emailNotifications'
 import SaveItemButton from '../../../components/SaveItemButton'
 import ReportButton from '../../../components/ReportButton'
 
@@ -67,31 +68,19 @@ export default function JobDetailPage() {
     if (!job) return
     setSubmitting(true)
 
-    const { error } = await supabase
+    const { data: application, error } = await supabase
       .from('job_applications')
       .insert({ job_id: job.id, applicant_id: userId, message: noteText })
+      .select('id')
+      .single()
 
-    if (error) {
+    if (error || !application) {
       setStatusMessage('Something went wrong. Please try again.')
       setSubmitting(false)
       return
     }
 
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
-        await fetch('/api/send-application-email', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({ jobId: job.id }),
-        })
-      }
-    } catch (e) {
-      console.error('Email notification failed:', e)
-    }
+    void sendEmailNotification('new_application', application.id)
 
     setAlreadyApplied(true)
     setApplicationStatus('new')
