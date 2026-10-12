@@ -17,18 +17,19 @@ security policies, and storage buckets defined in:
 6. Add these environment variables to the Vercel project:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `RESEND_API_KEY` (only needed for application email notifications)
+   - `SUPABASE_SERVICE_ROLE_KEY` (server only; never prefix with `NEXT_PUBLIC_`)
+   - `RESEND_API_KEY`
+   - `EMAIL_FROM` (for example, `TradesCraftConnect <notifications@tradescraftconnect.com>`)
 
 ## Existing TradesCraftConnect project
 
 Do not run the initial schema again on the existing production database. Apply
 only the newer numbered migrations in order:
 
-1. `supabase/migrations/002_profile_verification.sql`
+1. Apply each numbered migration after `001_initial_schema.sql` in order.
 
-Migration 002 adds profile-completion fields, protects license verification
-status from member self-approval, and allows authenticated members to see
-verified certification metadata.
+Migration 010 adds the transactional-email preference and a private delivery
+log used to prevent duplicate sends.
 
 Never expose the Supabase service-role key in browser code or commit it to this
 repository.

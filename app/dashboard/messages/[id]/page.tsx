@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
+import { sendEmailNotification } from '../../../lib/emailNotifications'
 
 type ThreadMessage = { id: string; sender_id: string; body: string; read_at: string | null; created_at: string }
 type ThreadDetails = { jobTitle: string; otherName: string; applicationStatus: string; jobStatus: string }
@@ -66,9 +67,13 @@ export default function MessageThreadPage() {
     const cleanBody = body.trim()
     if (!cleanBody || cleanBody.length > 2000) return
     setSending(true); setError('')
-    const { error: sendError } = await supabase.from('application_messages').insert({ application_id: id, sender_id: userId, recipient_id: userId, body: cleanBody })
+    const { data: sentMessage, error: sendError } = await supabase.from('application_messages').insert({ application_id: id, sender_id: userId, recipient_id: userId, body: cleanBody }).select('id').single()
     if (sendError) setError(sendError.message.includes('closed') ? 'Messaging is closed for this application.' : 'Your message did not send. Please try again.')
-    else { setBody(''); await loadMessages(userId) }
+    else {
+      setBody('')
+      if (sentMessage) void sendEmailNotification('application_message', sentMessage.id)
+      await loadMessages(userId)
+    }
     setSending(false)
   }
 

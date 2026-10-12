@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
+import { sendEmailNotification } from '../../../lib/emailNotifications'
 
 type Applicant = {
   id: string
@@ -81,6 +82,7 @@ export default function JobApplicantsPage() {
         app.id === applicationId ? { ...app, status: data.status } : app
       ))
       setStatusMessage(`Application status saved as ${data.status.charAt(0).toUpperCase() + data.status.slice(1)}.`)
+      void sendEmailNotification('application_status', applicationId)
     }
     setUpdatingId('')
   }
