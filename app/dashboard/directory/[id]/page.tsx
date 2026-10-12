@@ -9,6 +9,7 @@ import {
   verificationLabels,
 } from '../../../lib/profile'
 import type { MemberProfile } from '../../../lib/profile'
+import SaveItemButton from '../../../components/SaveItemButton'
 
 type PortfolioImage = {
   id: string
@@ -38,11 +39,13 @@ export default function MemberProfilePage() {
   const [certifications, setCertifications] = useState<Certification[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [viewerId, setViewerId] = useState('')
 
   useEffect(() => {
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
+      setViewerId(user.id)
 
       const [profileResult, portfolioResult, certificationResult] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', params.id).single(),
@@ -102,12 +105,10 @@ export default function MemberProfilePage() {
   return (
     <div className="min-h-screen bg-gray-950 text-white p-5 sm:p-8">
       <div className="max-w-4xl mx-auto">
-        <button
-          onClick={() => router.push('/dashboard/directory')}
-          className="text-gray-400 hover:text-white text-sm mb-6 transition"
-        >
-          ← Back to Directory
-        </button>
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <button onClick={() => router.push('/dashboard/directory')} className="text-gray-400 hover:text-white text-sm transition">← Back to Directory</button>
+          {viewerId !== profile.id && <SaveItemButton kind="profile" itemId={profile.id} />}
+        </div>
 
         <section className="bg-gray-900 border border-gray-800 rounded-3xl p-6 sm:p-8">
           <div className="flex flex-col sm:flex-row sm:items-start gap-5">

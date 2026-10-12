@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
+import SaveItemButton from '../../../components/SaveItemButton'
 
 type Job = {
   id: string
@@ -112,11 +113,12 @@ export default function JobDetailPage() {
   return (
     <div className="min-h-screen bg-gray-950 text-white p-6">
       <div className="max-w-2xl mx-auto">
-        <button onClick={() => router.back()} className="text-gray-400 hover:text-white text-sm mb-6 transition">
-          ← Back
-        </button>
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <button onClick={() => router.back()} className="text-gray-400 hover:text-white text-sm transition">← Back</button>
+          {job.poster_id !== userId && <SaveItemButton kind="job" itemId={job.id} />}
+        </div>
 
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 mb-6">
+        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 sm:p-8 mb-6">
           <div className="flex items-start justify-between gap-4 mb-4">
             <h1 className="text-2xl font-bold">{job.title}</h1>
             <span className={`text-xs px-2 py-1 rounded-lg ${job.status === 'open' ? 'bg-green-500/10 text-green-400' : 'bg-gray-700 text-gray-400'}`}>
