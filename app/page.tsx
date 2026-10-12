@@ -86,8 +86,9 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-gray-800 px-8 py-8 text-center text-gray-600 text-sm">
-        © 2026 TradesCraftConnect. All rights reserved.
+      <footer className="border-t border-gray-800 px-8 py-8 text-center text-gray-500 text-sm">
+        <p>© 2026 TradesCraftConnect. All rights reserved.</p>
+        <div className="mt-3 flex flex-wrap justify-center gap-4"><Link href="/terms" className="hover:text-orange-400">Terms</Link><Link href="/privacy" className="hover:text-orange-400">Privacy</Link><Link href="/community-standards" className="hover:text-orange-400">Community Standards</Link><Link href="/verification-disclaimer" className="hover:text-orange-400">Verification</Link></div>
       </footer>
 
     </div>

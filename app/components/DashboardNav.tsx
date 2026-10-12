@@ -69,7 +69,10 @@ export default function DashboardNav() {
     { label: 'Directory', href: '/dashboard/directory' },
     { label: 'Profile', href: '/dashboard/edit-profile' },
     { label: 'Settings', href: '/dashboard/settings' },
-    ...(isAdmin ? [{ label: 'Certification Review', href: '/dashboard/admin/certifications' }] : []),
+    ...(isAdmin ? [
+      { label: 'Certification Review', href: '/dashboard/admin/certifications' },
+      { label: 'Safety Reports', href: '/dashboard/admin/reports' },
+    ] : []),
   ]
 
   const signOut = async () => {

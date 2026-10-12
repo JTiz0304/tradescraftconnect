@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import SaveItemButton from '../../../components/SaveItemButton'
+import ReportButton from '../../../components/ReportButton'
 
 type Job = {
   id: string
@@ -176,6 +177,11 @@ export default function JobDetailPage() {
               {submitting ? 'Sending...' : 'Submit Application'}
             </button>
             {statusMessage && <p className="text-green-400 text-sm mt-3 text-center">{statusMessage}</p>}
+          </div>
+        )}
+        {job.poster_id !== userId && (
+          <div className="mt-6">
+            <ReportButton entityType="job" entityId={job.id} reportedUserId={job.poster_id} targetLabel={job.title} />
           </div>
         )}
       </div>
