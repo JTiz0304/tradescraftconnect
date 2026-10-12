@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../lib/supabase'
+import Link from 'next/link'
 
 export default function SignupPage() {
   const router = useRouter()
@@ -11,13 +12,24 @@ export default function SignupPage() {
   const [message, setMessage] = useState('')
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [accepted, setAccepted] = useState(false)
 
   const handleSignup = async () => {
+    if (!accepted) { setMessage('Please accept the Terms and Privacy Policy to continue.'); return }
     setLoading(true)
     setMessage('')
     setSuccess(false)
 
-    const { data, error } = await supabase.auth.signUp({ email, password })
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          terms_accepted_at: new Date().toISOString(),
+          terms_version: '2026-10-12',
+        },
+      },
+    })
 
     setLoading(false)
     if (error) { setMessage(error.message); return }
@@ -60,6 +72,8 @@ export default function SignupPage() {
           onChange={(e) => setPassword(e.target.value)}
           className={inputClass}
         />
+
+        <label className="mb-3 flex items-start gap-3 text-sm text-gray-400"><input type="checkbox" checked={accepted} onChange={event => setAccepted(event.target.checked)} className="mt-1 h-4 w-4 accent-orange-500" /><span>I agree to the <Link href="/terms" className="text-orange-400 hover:text-orange-300">Terms of Service</Link>, <Link href="/privacy" className="text-orange-400 hover:text-orange-300">Privacy Policy</Link>, and <Link href="/community-standards" className="text-orange-400 hover:text-orange-300">Community Standards</Link>.</span></label>
 
         <button
           onClick={handleSignup}

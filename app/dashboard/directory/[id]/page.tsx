@@ -10,6 +10,7 @@ import {
 } from '../../../lib/profile'
 import type { MemberProfile } from '../../../lib/profile'
 import SaveItemButton from '../../../components/SaveItemButton'
+import ReportButton from '../../../components/ReportButton'
 
 type PortfolioImage = {
   id: string
@@ -221,6 +222,11 @@ export default function MemberProfilePage() {
             </div>
           )}
         </section>
+        {viewerId !== profile.id && (
+          <div className="mt-6">
+            <ReportButton entityType="profile" entityId={profile.id} reportedUserId={profile.id} targetLabel={displayName} />
+          </div>
+        )}
       </div>
     </div>
   )
