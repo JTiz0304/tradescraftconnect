@@ -52,7 +52,7 @@ export default function SafetyReportsPage() {
 
   const review = async (report: Report, decision: Exclude<ReportStatus, 'open'>) => {
     setBusy(report.id); setMessage('')
-    const { error } = await supabase.rpc('review_member_report', { report_id: report.id, decision, admin_notes: notes[report.id]?.trim() || null })
+    const { error } = await supabase.rpc('review_member_report', { report_id: report.id, decision, admin_notes: (notes[report.id] ?? report.resolution_notes ?? '').trim() || null })
     if (error) setMessage(`Review did not save: ${error.message}`)
     else { setMessage(`Report marked ${decision}.`); await load() }
     setBusy('')
@@ -60,7 +60,7 @@ export default function SafetyReportsPage() {
 
   const suspend = async (report: Report) => {
     if (!report.reported_user_id) return
-    const reason = notes[report.id]?.trim() || `Safety report: ${report.category.replaceAll('_', ' ')}`
+    const reason = (notes[report.id] ?? report.resolution_notes ?? '').trim() || `Safety report: ${report.category.replaceAll('_', ' ')}`
     const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
     setBusy(report.id); setMessage('')
     const { error } = await supabase.rpc('set_member_suspension', { target_user: report.reported_user_id, suspend: true, admin_reason: reason, suspension_expires_at: expires })
