@@ -53,8 +53,14 @@ export async function POST(request: Request) {
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   })
-  const { data: { user } } = await authClient.auth.getUser(token)
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { data: { user }, error: authError } = await authClient.auth.getUser(token)
+  if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // All later reads use the service role, so RLS alone cannot enforce this.
+  const { data: suspended, error: suspensionError } = await authClient.rpc('is_user_suspended')
+  if (suspensionError || typeof suspended !== 'boolean') {
+    return NextResponse.json({ error: 'Account access could not be verified' }, { status: 503 })
+  }
+  if (suspended) return NextResponse.json({ error: 'Account access is paused' }, { status: 403 })
 
   const body = await request.json().catch(() => null) as { eventType?: EmailEventType; relatedId?: string } | null
   if (!body?.eventType || !body.relatedId) {
@@ -143,12 +149,12 @@ export async function POST(request: Request) {
 
   if (body.eventType === 'account_suspension') {
     if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    const { data: suspension } = await admin.from('member_suspensions').select('user_id,reason,expires_at,lifted_at').eq('user_id', body.relatedId).single()
+    const { data: suspension } = await admin.from('member_suspensions').select('user_id,reason,expires_at,lifted_at,suspended_at').eq('user_id', body.relatedId).single()
     if (!suspension) return NextResponse.json({ error: 'Suspension record not found' }, { status: 404 })
     const lifted = Boolean(suspension.lifted_at)
     details = {
       recipientId: suspension.user_id,
-      eventKey: `account_suspension:${suspension.user_id}:${lifted ? 'lifted' : suspension.expires_at || 'active'}`,
+      eventKey: `account_suspension:${suspension.user_id}:${lifted ? `lifted:${suspension.lifted_at}` : `paused:${suspension.suspended_at}`}`,
       subject: lifted ? 'Account access restored' : 'Important account access update',
       heading: lifted ? 'Account Access Restored' : 'Account Access Paused',
       message: lifted
@@ -172,22 +178,42 @@ export async function POST(request: Request) {
     return NextResponse.json({ skipped: true, reason: 'Recipient opted out' })
   }
 
-  const { data: existing } = await admin
-    .from('email_notification_deliveries')
-    .select('status')
-    .eq('event_key', details.eventKey)
-    .eq('recipient_id', details.recipientId)
-    .maybeSingle()
-  if (existing?.status === 'sent') return NextResponse.json({ sent: true, duplicate: true })
-
-  await admin.from('email_notification_deliveries').upsert({
+  // The unique constraint atomically reserves one sender. A read followed by an
+  // upsert lets simultaneous requests both see "not sent" and both send mail.
+  const reservation = await admin.from('email_notification_deliveries').insert({
     event_key: details.eventKey,
     event_type: body.eventType,
     related_id: body.relatedId,
     recipient_id: details.recipientId,
     status: 'pending',
     error_message: null,
-  }, { onConflict: 'event_key,recipient_id' })
+  }).select('id').single()
+  let deliveryId = reservation.data?.id
+  if (reservation.error) {
+    if (reservation.error.code !== '23505') {
+      return NextResponse.json({ error: 'Email delivery could not be reserved' }, { status: 503 })
+    }
+    const { data: existing, error: lookupError } = await admin.from('email_notification_deliveries')
+      .select('id,status,created_at').eq('event_key', details.eventKey)
+      .eq('recipient_id', details.recipientId).maybeSingle()
+    if (lookupError || !existing) return NextResponse.json({ error: 'Email delivery could not be verified' }, { status: 503 })
+    if (existing.status === 'sent') return NextResponse.json({ sent: true, duplicate: true })
+    if (existing.status !== 'failed') return NextResponse.json({ pending: true, duplicate: true }, { status: 202 })
+
+    // Resend retains idempotency keys for 24 hours. Old or uncertain deliveries
+    // require reconciliation rather than risking a second notification.
+    const age = Date.now() - new Date(existing.created_at).getTime()
+    if (!Number.isFinite(age) || age < 0 || age >= 23 * 60 * 60 * 1000) {
+      return NextResponse.json({ error: 'Email delivery needs administrator review' }, { status: 409 })
+    }
+    const { data: retry, error: retryError } = await admin.from('email_notification_deliveries')
+      .update({ status: 'pending', error_message: null }).eq('id', existing.id)
+      .eq('status', 'failed').select('id').maybeSingle()
+    if (retryError) return NextResponse.json({ error: 'Email retry could not be reserved' }, { status: 503 })
+    if (!retry) return NextResponse.json({ pending: true, duplicate: true }, { status: 202 })
+    deliveryId = retry.id
+  }
+  if (!deliveryId) return NextResponse.json({ error: 'Email delivery could not be reserved' }, { status: 503 })
 
   const origin = new URL(request.url).origin
   const safeHeading = escapeHtml(details.heading)
@@ -195,18 +221,32 @@ export async function POST(request: Request) {
   const safeLink = `${origin}${details.link}`
   const safeButton = escapeHtml(details.buttonLabel)
   const resend = new Resend(resendApiKey)
-  const { data, error } = await resend.emails.send({
-    from: emailFrom,
-    to: recipient.email,
-    subject: details.subject,
-    html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#0f172a;color:#f8fafc;padding:32px;border-radius:14px"><div style="font-size:20px;font-weight:700;color:#f97316">TradesCraftConnect</div><h1 style="font-size:26px;margin:28px 0 12px">${safeHeading}</h1><p style="color:#cbd5e1;font-size:16px;line-height:1.6">${safeMessage}</p><a href="${safeLink}" style="display:inline-block;margin-top:22px;background:#f97316;color:#fff;padding:12px 22px;border-radius:9px;text-decoration:none;font-weight:700">${safeButton}</a><p style="margin-top:32px;color:#64748b;font-size:12px">This transactional email was sent because of activity on your TradesCraftConnect account.</p></div>`,
-  })
+  let result: Awaited<ReturnType<typeof resend.emails.send>>
+  try {
+    result = await resend.emails.send({
+      from: emailFrom,
+      to: recipient.email,
+      subject: details.subject,
+      html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#0f172a;color:#f8fafc;padding:32px;border-radius:14px"><div style="font-size:20px;font-weight:700;color:#f97316">TradesCraftConnect</div><h1 style="font-size:26px;margin:28px 0 12px">${safeHeading}</h1><p style="color:#cbd5e1;font-size:16px;line-height:1.6">${safeMessage}</p><a href="${safeLink}" style="display:inline-block;margin-top:22px;background:#f97316;color:#fff;padding:12px 22px;border-radius:9px;text-decoration:none;font-weight:700">${safeButton}</a><p style="margin-top:32px;color:#64748b;font-size:12px">This transactional email was sent because of activity on your TradesCraftConnect account.</p></div>`,
+    }, { idempotencyKey: `tcc:${details.eventKey}:${details.recipientId}` })
+  } catch {
+    // A lost response may follow provider acceptance. Keep the reservation so
+    // later requests cannot blindly resend this uncertain delivery.
+    await admin.from('email_notification_deliveries')
+      .update({ error_message: 'Provider response unknown; reconcile before retrying.' }).eq('id', deliveryId)
+    return NextResponse.json({ error: 'Email delivery status is unknown' }, { status: 503 })
+  }
+  const { data, error } = result
 
   if (error) {
-    await admin.from('email_notification_deliveries').update({ status: 'failed', error_message: JSON.stringify(error) }).eq('event_key', details.eventKey).eq('recipient_id', details.recipientId)
+    await admin.from('email_notification_deliveries').update({ status: 'failed', error_message: JSON.stringify(error) }).eq('id', deliveryId)
     return NextResponse.json({ error: 'Email provider rejected the message' }, { status: 502 })
   }
 
-  await admin.from('email_notification_deliveries').update({ status: 'sent', provider_message_id: data?.id ?? null, sent_at: new Date().toISOString() }).eq('event_key', details.eventKey).eq('recipient_id', details.recipientId)
+  if (!data?.id) return NextResponse.json({ error: 'Email delivery status is unknown' }, { status: 503 })
+  const { data: logged, error: logError } = await admin.from('email_notification_deliveries')
+    .update({ status: 'sent', provider_message_id: data.id, sent_at: new Date().toISOString() })
+    .eq('id', deliveryId).eq('status', 'pending').select('id').maybeSingle()
+  if (logError || !logged) return NextResponse.json({ error: 'Email sent but delivery record needs administrator review' }, { status: 503 })
   return NextResponse.json({ sent: true })
 }

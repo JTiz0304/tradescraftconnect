@@ -31,5 +31,13 @@ only the newer numbered migrations in order:
 Migration 010 adds the transactional-email preference and a private delivery
 log used to prevent duplicate sends.
 
+Existing SQL Editor changes may not appear in migration history. Inspect the
+actual schema before applying 010 or any older migration. The live audit found
+the delivery table and preference column already present.
+
+Run `npm run test:email`, `npm run lint`, and `npx tsc --noEmit` before review.
+The email tests mock Supabase and Resend and never send real emails. See
+`EMAIL_DELIVERY_RUNBOOK.md` for retry/reconciliation behavior and live checks.
+
 Never expose the Supabase service-role key in browser code or commit it to this
 repository.
