@@ -50,22 +50,23 @@ export default function SafetyReportsPage() {
 
   useEffect(() => { const timer = window.setTimeout(() => { void load() }, 0); return () => window.clearTimeout(timer) }, [load])
 
-  const review = async (report: Report, decision: Exclude<ReportStatus, 'open'>) => {
+  const review = async (report: Report, decision: Exclude<ReportStatus, 'open'>, confirmation = `Report marked ${decision}.`, failureMessage = 'Review did not save') => {
     setBusy(report.id); setMessage('')
-    const { error } = await supabase.rpc('review_member_report', { report_id: report.id, decision, admin_notes: notes[report.id]?.trim() || null })
-    if (error) setMessage(`Review did not save: ${error.message}`)
-    else { setMessage(`Report marked ${decision}.`); await load() }
+    const { error } = await supabase.rpc('review_member_report', { report_id: report.id, decision, admin_notes: (notes[report.id] ?? report.resolution_notes ?? '').trim() || null })
+    if (error) setMessage(`${failureMessage}: ${error.message}`)
+    else { setMessage(confirmation); await load() }
     setBusy('')
   }
 
   const suspend = async (report: Report) => {
     if (!report.reported_user_id) return
-    const reason = notes[report.id]?.trim() || `Safety report: ${report.category.replaceAll('_', ' ')}`
+    // Suspension reasons are visible to the member; review notes stay private.
+    const reason = `Safety report: ${report.category.replaceAll('_', ' ')}`
     const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
     setBusy(report.id); setMessage('')
     const { error } = await supabase.rpc('set_member_suspension', { target_user: report.reported_user_id, suspend: true, admin_reason: reason, suspension_expires_at: expires })
     if (error) setMessage(`Account was not suspended: ${error.message}`)
-    else { setMessage('Account suspended for 30 days.'); await review(report, 'resolved') }
+    else await review(report, 'resolved', 'Account suspended for 30 days. Report marked resolved.', 'Account suspended for 30 days, but report resolution did not save')
     setBusy('')
   }
 
@@ -83,7 +84,8 @@ export default function SafetyReportsPage() {
         <p className="text-sm font-semibold uppercase tracking-wide text-orange-400">Administrator</p>
         <h1 className="text-3xl font-bold">Safety Reports</h1>
         <p className="mt-1 text-gray-400">Review member concerns and control platform access.</p>
-        <div className="my-6 flex flex-wrap gap-2">{filters.map(item => <button key={item.value} onClick={() => setFilter(item.value)} className={`rounded-xl px-4 py-2 text-sm ${filter === item.value ? 'bg-orange-500 font-semibold' : 'bg-gray-800 text-gray-300'}`}>{item.label}</button>)}</div>
+        <div className="mb-3 mt-6 flex flex-wrap gap-2">{filters.map(item => <button key={item.value} onClick={() => setFilter(item.value)} className={`rounded-xl px-4 py-2 text-sm ${filter === item.value ? 'bg-orange-500 font-semibold' : 'bg-gray-800 text-gray-300'}`}>{item.label}</button>)}</div>
+        <p className="mb-6 text-sm text-gray-400">All includes resolved and dismissed reports for review history. Dismissing a report keeps its history and does not lift an account suspension.</p>
         {message && <p className="mb-4 rounded-xl border border-gray-700 bg-gray-900 p-3 text-sm">{message}</p>}
         {loading ? <p className="text-gray-400">Loading reports…</p> : reports.length === 0 ? <div className="rounded-2xl border border-gray-800 bg-gray-900 p-10 text-center"><p className="text-3xl">✓</p><p className="mt-2 font-semibold">No reports in this section</p></div> : (
           <div className="flex flex-col gap-4">{reports.map(report => (
@@ -93,7 +95,7 @@ export default function SafetyReportsPage() {
                 <Link href={report.entity_type === 'job' ? `/dashboard/jobs/${report.entity_id}` : `/dashboard/directory/${report.entity_id}`} className="text-sm text-orange-400">View reported {report.entity_type}</Link>
               </div>
               <p className="mt-4 whitespace-pre-wrap text-gray-200">{report.details}</p>
-              <textarea value={notes[report.id] ?? report.resolution_notes ?? ''} onChange={event => setNotes(current => ({ ...current, [report.id]: event.target.value }))} placeholder="Private administrator notes or suspension reason…" className="mt-4 min-h-20 w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 placeholder-gray-500" />
+              <textarea value={notes[report.id] ?? report.resolution_notes ?? ''} onChange={event => setNotes(current => ({ ...current, [report.id]: event.target.value }))} placeholder="Private administrator notes…" className="mt-4 min-h-20 w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 placeholder-gray-500" />
               <div className="mt-3 flex flex-wrap gap-2">
                 <button disabled={busy === report.id} onClick={() => review(report, 'reviewing')} className="rounded-xl bg-yellow-600 px-4 py-2 text-sm font-semibold disabled:opacity-50">Start Review</button>
                 <button disabled={busy === report.id} onClick={() => review(report, 'resolved')} className="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold disabled:opacity-50">Resolve</button>

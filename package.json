@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:safety": "node --test tests/safety-*.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.0",
@@ -17,6 +18,7 @@
     "resend": "^6.12.4"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10",
     "@tailwindcss/postcss": "^4.3.0",
     "@types/node": "^20",
     "@types/react": "^19",

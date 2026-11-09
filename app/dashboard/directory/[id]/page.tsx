@@ -168,6 +168,12 @@ export default function MemberProfilePage() {
           )}
         </section>
 
+        {viewerId !== profile.id && (
+          <div className="mt-6">
+            <ReportButton entityType="profile" entityId={profile.id} reportedUserId={profile.id} targetLabel={displayName} />
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
           <ProfileSection title="Experience & Preferences">
             <InfoRow label="Business" value={profile.business_name || profile.company_name} />
@@ -222,11 +228,6 @@ export default function MemberProfilePage() {
             </div>
           )}
         </section>
-        {viewerId !== profile.id && (
-          <div className="mt-6">
-            <ReportButton entityType="profile" entityId={profile.id} reportedUserId={profile.id} targetLabel={displayName} />
-          </div>
-        )}
       </div>
     </div>
   )
