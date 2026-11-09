@@ -108,6 +108,12 @@ export default function JobDetailPage() {
           {job.poster_id !== userId && <SaveItemButton kind="job" itemId={job.id} />}
         </div>
 
+        {job.poster_id !== userId && (
+          <div className="mb-6">
+            <ReportButton entityType="job" entityId={job.id} reportedUserId={job.poster_id} targetLabel={job.title} />
+          </div>
+        )}
+
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 sm:p-8 mb-6">
           <div className="flex items-start justify-between gap-4 mb-4">
             <h1 className="text-2xl font-bold">{job.title}</h1>
@@ -166,11 +172,6 @@ export default function JobDetailPage() {
               {submitting ? 'Sending...' : 'Submit Application'}
             </button>
             {statusMessage && <p className="text-green-400 text-sm mt-3 text-center">{statusMessage}</p>}
-          </div>
-        )}
-        {job.poster_id !== userId && (
-          <div className="mt-6">
-            <ReportButton entityType="job" entityId={job.id} reportedUserId={job.poster_id} targetLabel={job.title} />
           </div>
         )}
       </div>
