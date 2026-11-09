@@ -36,17 +36,17 @@ repository.
 ## Safety and moderation follow-up
 
 After migrations 001–009 are installed, apply
-`supabase/migrations/011_safety_moderation_hardening.sql`. Migration 010 is
-reserved for the separate email-notifications PR; 011 does not depend on it.
+`supabase/migrations/20261109165921_safety_moderation_hardening.sql`. Migration 010 is
+reserved for the separate email-notifications PR; the safety migration does not depend on it.
 Do not edit or rerun the original schema on an existing project.
 
-Migration 011 makes reports and admin notes readable only by administrators,
+The safety migration makes reports and admin notes readable only by administrators,
 validates report targets, restricts submission columns, and blocks suspended
 members through restrictive RLS policies on member data and storage operations.
 Suspended members retain read access to their own suspension reason. Public
 avatar/portfolio URLs remain public; suspension does not revoke public files.
 
-Next apply `supabase/migrations/20261109141000_reconcile_legacy_permissions.sql`.
+Next apply `supabase/migrations/20261109170012_reconcile_legacy_permissions.sql`.
 The existing deployment has older policies and explicit Supabase default grants
 that differ from a clean installation. This follow-up revokes anonymous member
 data access, narrows update privileges, restricts job posting to hiring roles,
@@ -54,9 +54,17 @@ protects new application status and verified credentials, and removes direct
 execution access to trigger-only functions. It also sets the existing signup
 trigger's search path and brings upload limits into line with the schema.
 
-An empty migration-history list does not mean these feature tables are missing:
-the original project was updated through SQL Editor. Inspect its actual schema
-before applying any older migrations. Never rerun 001 to reconcile this project.
+The two source filenames match the versions recorded by Supabase when applied
+to production on November 9, 2026. Both are installed in the existing project.
+Seventeen live database checks passed inside a rolled-back transaction, including
+report privacy, application/message permissions, suspension and restore. Existing
+account, profile, job, application, report and suspension counts were unchanged.
+
+An empty or partial migration-history list does not mean older feature tables
+are missing: the original project was updated through SQL Editor. Inspect its
+actual schema before applying older migrations. Never rerun 001 to reconcile
+this project, and do not bulk-push legacy migrations until its baseline history
+has been reconciled.
 
 Run `npm run test:safety`, `npm run lint`, `npx tsc --noEmit`, and `npm run build`
 before review. The safety tests use disposable embedded PostgreSQL with simulated

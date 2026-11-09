@@ -1,4 +1,4 @@
--- Apply after 011_safety_moderation_hardening.sql. The existing project predates
+-- Apply after 20261109165921_safety_moderation_hardening.sql. The existing project predates
 -- migration tracking and has permissive legacy policies/default function grants.
 -- Reconcile those permissions without recreating tables or changing member data.
 begin;

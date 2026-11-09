@@ -59,7 +59,7 @@ describe('Safety database regression', { concurrency: false }, () => {
         select string_to_array($1, '/') $$;
     `)
     for (const name of (await readdir(migrations)).filter(name => name.endsWith('.sql')).sort()) {
-      if (name === '011_safety_moderation_hardening.sql') {
+      if (name === '20261109165921_safety_moderation_hardening.sql') {
         await db.exec(await readFile(new URL('./fixtures/legacy-access.sql', import.meta.url), 'utf8'))
       }
       // gen_random_uuid is built into PostgreSQL/PGlite; these migrations do not
@@ -68,8 +68,8 @@ describe('Safety database regression', { concurrency: false }, () => {
       await db.exec(sql)
     }
     // The follow-up also works when reapplied to an already-migrated project.
-    await db.exec(await readFile(new URL('011_safety_moderation_hardening.sql', migrations), 'utf8'))
-    await db.exec(await readFile(new URL('20261109141000_reconcile_legacy_permissions.sql', migrations), 'utf8'))
+    await db.exec(await readFile(new URL('20261109165921_safety_moderation_hardening.sql', migrations), 'utf8'))
+    await db.exec(await readFile(new URL('20261109170012_reconcile_legacy_permissions.sql', migrations), 'utf8'))
     for (const member of ['admin', 'reporter', 'target', 'other', 'admin2']) {
       await db.query('insert into auth.users(id,email) values ($1,$2)', [id[member], `${member}@example.invalid`])
     }
