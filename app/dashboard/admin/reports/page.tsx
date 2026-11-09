@@ -60,7 +60,8 @@ export default function SafetyReportsPage() {
 
   const suspend = async (report: Report) => {
     if (!report.reported_user_id) return
-    const reason = (notes[report.id] ?? report.resolution_notes ?? '').trim() || `Safety report: ${report.category.replaceAll('_', ' ')}`
+    // Suspension reasons are visible to the member; review notes stay private.
+    const reason = `Safety report: ${report.category.replaceAll('_', ' ')}`
     const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
     setBusy(report.id); setMessage('')
     const { error } = await supabase.rpc('set_member_suspension', { target_user: report.reported_user_id, suspend: true, admin_reason: reason, suspension_expires_at: expires })
@@ -93,7 +94,7 @@ export default function SafetyReportsPage() {
                 <Link href={report.entity_type === 'job' ? `/dashboard/jobs/${report.entity_id}` : `/dashboard/directory/${report.entity_id}`} className="text-sm text-orange-400">View reported {report.entity_type}</Link>
               </div>
               <p className="mt-4 whitespace-pre-wrap text-gray-200">{report.details}</p>
-              <textarea value={notes[report.id] ?? report.resolution_notes ?? ''} onChange={event => setNotes(current => ({ ...current, [report.id]: event.target.value }))} placeholder="Private administrator notes or suspension reason…" className="mt-4 min-h-20 w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 placeholder-gray-500" />
+              <textarea value={notes[report.id] ?? report.resolution_notes ?? ''} onChange={event => setNotes(current => ({ ...current, [report.id]: event.target.value }))} placeholder="Private administrator notes…" className="mt-4 min-h-20 w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 placeholder-gray-500" />
               <div className="mt-3 flex flex-wrap gap-2">
                 <button disabled={busy === report.id} onClick={() => review(report, 'reviewing')} className="rounded-xl bg-yellow-600 px-4 py-2 text-sm font-semibold disabled:opacity-50">Start Review</button>
                 <button disabled={busy === report.id} onClick={() => review(report, 'resolved')} className="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold disabled:opacity-50">Resolve</button>

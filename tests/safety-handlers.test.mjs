@@ -24,7 +24,7 @@ function handler(file, name, bindings) {
 function state() {
   const values = { allowed: false, accessError: false, messages: [], redirects: [], calls: [] }
   return {
-    values, active: true, isAuthSessionMissingError,
+    values, active: true, isAuthSessionMissingError, sendEmailNotification: async () => {},
     setAllowed: value => { values.allowed = value },
     setAccessError: value => { values.accessError = value },
     setMessage: value => { values.messages.push(value) },
@@ -99,16 +99,16 @@ for (const [name, notes, saved, expected] of [
   assert.equal(bindings.values.calls[0].args.admin_notes, expected)
   assert.equal(bindings.values.calls[0].args.decision, 'resolved')
 })
-test('suspend uses the displayed saved note as its reason and requests 30 days', async () => {
+test('suspend keeps administrator notes private and requests 30 days', async () => {
   const bindings = state()
   Object.assign(bindings, {
-    notes: {}, review: async () => {},
+    notes: { report: 'Private draft note' }, review: async () => {},
     supabase: { rpc: async (name, args) => { bindings.values.calls.push({ name, args }); return { error: null } } },
   })
   const started = Date.now()
   await handler('app/dashboard/admin/reports/page.tsx', 'suspend', bindings)({ id: 'report', reported_user_id: 'target', resolution_notes: 'Saved reason', category: 'unsafe' })
   const args = bindings.values.calls[0].args
-  assert.equal(args.admin_reason, 'Saved reason')
+  assert.equal(args.admin_reason, 'Safety report: unsafe')
   assert.equal(args.target_user, 'target')
   assert.equal(args.suspend, true)
   const days30 = 30 * 24 * 60 * 60 * 1000

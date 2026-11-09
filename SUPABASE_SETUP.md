@@ -46,12 +46,27 @@ members through restrictive RLS policies on member data and storage operations.
 Suspended members retain read access to their own suspension reason. Public
 avatar/portfolio URLs remain public; suspension does not revoke public files.
 
+Next apply `supabase/migrations/20261109141000_reconcile_legacy_permissions.sql`.
+The existing deployment has older policies and explicit Supabase default grants
+that differ from a clean installation. This follow-up revokes anonymous member
+data access, narrows update privileges, restricts job posting to hiring roles,
+protects new application status and verified credentials, and removes direct
+execution access to trigger-only functions. It also sets the existing signup
+trigger's search path and brings upload limits into line with the schema.
+
+An empty migration-history list does not mean these feature tables are missing:
+the original project was updated through SQL Editor. Inspect its actual schema
+before applying any older migrations. Never rerun 001 to reconcile this project.
+
 Run `npm run test:safety`, `npm run lint`, `npx tsc --noEmit`, and `npm run build`
 before review. The safety tests use disposable embedded PostgreSQL with simulated
 Supabase auth/storage schemas and mocked frontend handlers, never a live project.
+The database suite overlays synthetic reproductions of legacy access patterns before
+the two hardening migrations, covering both old permissive policies and default
+grants rather than relying only on a clean-install schema.
 
 For preview sign-off, confirm the Vercel preview points at the intended Supabase
-test project, then apply 009 and 011 if absent. Use one administrator (already in
+test project, then apply the missing safety migrations above. Use one administrator (already in
 `public.admin_users`) and two disposable members to verify:
 
 1. Signup requires the policy checkbox and records the policy version/timestamp.

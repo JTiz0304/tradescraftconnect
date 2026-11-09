@@ -59,6 +59,9 @@ describe('Safety database regression', { concurrency: false }, () => {
         select string_to_array($1, '/') $$;
     `)
     for (const name of (await readdir(migrations)).filter(name => name.endsWith('.sql')).sort()) {
+      if (name === '011_safety_moderation_hardening.sql') {
+        await db.exec(await readFile(new URL('./fixtures/legacy-access.sql', import.meta.url), 'utf8'))
+      }
       // gen_random_uuid is built into PostgreSQL/PGlite; these migrations do not
       // use any other pgcrypto API. Everything else is executed unchanged.
       const sql = (await readFile(new URL(name, migrations), 'utf8')).replace('create extension if not exists pgcrypto;', '')
@@ -66,6 +69,7 @@ describe('Safety database regression', { concurrency: false }, () => {
     }
     // The follow-up also works when reapplied to an already-migrated project.
     await db.exec(await readFile(new URL('011_safety_moderation_hardening.sql', migrations), 'utf8'))
+    await db.exec(await readFile(new URL('20261109141000_reconcile_legacy_permissions.sql', migrations), 'utf8'))
     for (const member of ['admin', 'reporter', 'target', 'other', 'admin2']) {
       await db.query('insert into auth.users(id,email) values ($1,$2)', [id[member], `${member}@example.invalid`])
     }
@@ -86,6 +90,60 @@ describe('Safety database regression', { concurrency: false }, () => {
     const { rows } = await owner('select * from public.member_reports')
     assert.equal(rows.length, 3)
     assert.ok(rows.every(row => row.status === 'open' && row.resolution_notes === null && row.resolved_by === null && row.reported_user_id === id.target))
+  })
+  test('anonymous profile reads and inserts are denied despite legacy public policies', async () => {
+    for (const sql of [
+      'select email from public.profiles',
+      "insert into public.profiles(id,email) values (gen_random_uuid(),'spoof@example.invalid')",
+    ]) {
+      await owner('savepoint negative')
+      await assert.rejects(as('anon', sql), /permission denied/)
+      await db.exec('rollback to savepoint negative')
+    }
+  })
+  test('members cannot create a profile with self-approved verification', async () => {
+    await assert.rejects(as('reporter', "insert into public.profiles(id,license_verification_status) values ($1,'verified')", [id.missing]), /permission denied/)
+  })
+  test('Auth trigger still creates profiles after direct trigger-function grants are revoked', async () => {
+    await owner('insert into auth.users(id,email) values ($1,$2)', [id.missing, 'new@example.invalid'])
+    assert.equal((await owner('select email from public.profiles where id=$1', [id.missing])).rows[0].email, 'new@example.invalid')
+  })
+  test('anonymous callers cannot execute any public application function', async () => {
+    const { rows } = await owner("select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and has_function_privilege('anon',p.oid,'EXECUTE')")
+    assert.deepEqual(rows, [])
+  })
+  test('members cannot directly execute trigger-only functions', async () => {
+    const { rows } = await owner("select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.prorettype='trigger'::regtype and has_function_privilege('authenticated',p.oid,'EXECUTE')")
+    assert.deepEqual(rows, [])
+  })
+  test('only hiring roles can post jobs', async () => {
+    await assert.rejects(as('reporter', "insert into public.job_postings(poster_id,title,trade_type,location) values ($1,'Unauthorized job','electrical','Test')", [id.reporter]), /row-level security/)
+  })
+  test('applicants cannot mark themselves hired during submission', async () => {
+    await assert.rejects(as('reporter', "insert into public.job_applications(job_id,applicant_id,status) values ($1,$2,'hired')", [id.otherJob, id.reporter]), /row-level security/)
+  })
+  test('closed jobs cannot receive new applications', async () => {
+    await as('other', "update public.job_postings set status='closed' where id=$1", [id.otherJob])
+    await assert.rejects(as('reporter', 'insert into public.job_applications(job_id,applicant_id) values ($1,$2)', [id.otherJob, id.reporter]), /row-level security/)
+  })
+  test('employers can change status but cannot rewrite application ownership', async () => {
+    await as('target', "update public.job_applications set status='reviewing' where id=$1", [id.application])
+    assert.equal((await as('reporter', 'select status from public.job_applications where id=$1', [id.application])).rows[0].status, 'reviewing')
+    await assert.rejects(as('target', 'update public.job_applications set applicant_id=$1 where id=$2', [id.other, id.application]), /permission denied/)
+  })
+  test('recipients can mark messages read without rewriting the sender or body', async () => {
+    const sent = await as('target', "insert into public.application_messages(application_id,sender_id,recipient_id,body) values ($1,$2,$3,'Original body') returning id", [id.application, id.target, id.reporter])
+    await as('reporter', 'update public.application_messages set read_at=now() where id=$1', [sent.rows[0].id])
+    assert.ok((await as('reporter', 'select read_at from public.application_messages where id=$1', [sent.rows[0].id])).rows[0].read_at)
+    await assert.rejects(as('reporter', "update public.application_messages set body='Rewritten' where id=$1", [sent.rows[0].id]), /permission denied/)
+  })
+  test('legacy delete policies cannot remove a verified certification', async () => {
+    const cert = await owner("insert into public.certifications(user_id,file_url,file_name,cert_name,verification_status) values ($1,'private/path','cert.pdf','Test certificate','verified') returning id", [id.reporter])
+    assert.equal((await as('reporter', 'delete from public.certifications where id=$1 returning id', [cert.rows[0].id])).rows.length, 0)
+  })
+  test('owners can delete their jobs and applicants can withdraw their applications', async () => {
+    assert.equal((await as('reporter', 'delete from public.job_applications where id=$1 returning id', [id.application])).rows.length, 1)
+    assert.equal((await as('other', 'delete from public.job_postings where id=$1 returning id', [id.otherJob])).rows.length, 1)
   })
   test('target owner is derived when omitted', async () => {
     await as('reporter', "insert into public.member_reports(reporter_id,entity_type,entity_id,category,details) values ($1,'job',$2,'other','Owner derivation test')", [id.reporter, id.job])
