@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
+import { sendEmailNotification } from '../../../lib/emailNotifications'
 
 type ReviewStatus = 'pending' | 'verified' | 'rejected'
 
@@ -105,6 +106,7 @@ export default function CertificationReviewPage() {
     if (reviewError) setError(`Review did not save: ${reviewError.message}`)
     else {
       setSuccess(`${certification.cert_name} was ${decision === 'verified' ? 'approved' : 'rejected'}.`)
+      void sendEmailNotification('certification_review', certification.id)
       setNotes(current => ({ ...current, [certification.id]: '' }))
       await loadCertifications()
     }
