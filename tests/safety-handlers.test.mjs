@@ -4,6 +4,9 @@ import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
 import { AuthSessionMissingError, isAuthSessionMissingError } from '@supabase/supabase-js'
+import * as React from 'react'
+import * as jsxRuntime from 'react/jsx-runtime'
+import { renderToStaticMarkup } from 'react-dom/server'
 
 // Execute the actual TS handlers with mocked boundaries, without creating
 // accounts, accepting real terms, sending email, or accessing a live project.
@@ -22,11 +25,16 @@ function handler(file, name, bindings) {
   return vm.runInNewContext(`${outputText}; extracted`, bindings)
 }
 function state() {
-  const values = { allowed: false, accessError: false, messages: [], redirects: [], calls: [] }
+  const values = { allowed: false, accessError: false, access: 'checking', checking: true, checkError: '', reason: '', expires: null, messages: [], redirects: [], calls: [] }
   return {
     values, active: true, isAuthSessionMissingError, sendEmailNotification: async () => {},
     setAllowed: value => { values.allowed = value },
     setAccessError: value => { values.accessError = value },
+    setAccess: value => { values.access = value },
+    setChecking: value => { values.checking = value },
+    setCheckError: value => { values.checkError = value },
+    setReason: value => { values.reason = value },
+    setExpires: value => { values.expires = value },
     setMessage: value => { values.messages.push(value) },
     setLoading: () => {}, setSuccess: () => {}, setBusy: () => {},
     setSaving: () => {}, setDetails: () => {},
@@ -54,6 +62,122 @@ for (const [name, user, suspended, error, expected] of [
     if (expected === 'blocked') assert.equal(bindings.values.accessError, true)
     else assert.equal(bindings.values.redirects[0], expected)
   }
+})
+
+for (const [name, admin, error, expected] of [
+  ['administrator', true, null, 'allowed'],
+  ['ordinary member', false, null, 'denied'],
+  ['failed admin RPC', null, { message: 'Unavailable' }, 'error'],
+  ['missing result', null, null, 'error'],
+  ['malformed result', 'true', null, 'error'],
+]) test(`administrator access: ${name}`, async () => {
+  const bindings = state()
+  bindings.supabase = {
+    auth: { getUser: async () => ({ data: { user: { id: 'member' } }, error: null }) },
+    rpc: async () => ({ data: admin, error }),
+  }
+  await handler('app/components/AdminAccessGuard.tsx', 'checkAdminAccess', bindings)()
+  assert.equal(bindings.values.access, expected)
+})
+
+test('administrator access distinguishes a missing session from a network failure', async () => {
+  for (const [error, expected] of [[new AuthSessionMissingError(), 'login'], [{ message: 'Network error' }, 'error']]) {
+    const bindings = state()
+    bindings.supabase = { auth: { getUser: async () => ({ data: { user: null }, error }) } }
+    await handler('app/components/AdminAccessGuard.tsx', 'checkAdminAccess', bindings)()
+    assert.deepEqual(bindings.values.redirects, expected === 'login' ? ['/login'] : [])
+    assert.equal(bindings.values.access, expected === 'login' ? 'checking' : 'error')
+  }
+})
+
+test('admin queue content never renders during checking, denial or an access error', () => {
+  const file = 'app/components/AdminAccessGuard.tsx'
+  const { outputText } = ts.transpileModule(readFileSync(new URL(`../${file}`, import.meta.url), 'utf8'), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
+  })
+  for (const access of ['checking', 'denied', 'error', 'allowed']) {
+    const exports = {}
+    const requireMock = name => {
+      if (name === 'react') return { ...React, useState: () => [access, () => {}], useEffect: () => {} }
+      if (name === 'react/jsx-runtime') return jsxRuntime
+      if (name === 'next/navigation') return { useRouter: () => ({}) }
+      if (name === 'next/link') return { default: ({ children, ...props }) => React.createElement('a', props, children) }
+      if (name === '@supabase/supabase-js') return { isAuthSessionMissingError }
+      if (name === '../lib/supabase') return { supabase: {} }
+      throw new Error(`Unexpected import ${name}`)
+    }
+    vm.runInNewContext(outputText, { exports, require: requireMock })
+    const markup = renderToStaticMarkup(React.createElement(exports.default, {}, React.createElement('button', {}, 'Private queue action')))
+    assert.equal(markup.includes('Private queue action'), access === 'allowed')
+    if (access === 'denied') assert.ok(markup.includes('Administrator access required'))
+  }
+})
+
+test('restored member rechecks access in the same session without reading old suspension details', async () => {
+  const bindings = state()
+  let suspended = true
+  let reasonReads = 0
+  bindings.supabase = {
+    auth: { getUser: async () => ({ data: { user: { id: 'member' } }, error: null }) },
+    rpc: async () => ({ data: suspended, error: null }),
+    from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => {
+      reasonReads++
+      return { data: { reason: 'Safety report: other', expires_at: '2026-12-09T20:00:00Z' }, error: null }
+    } }) }) }),
+  }
+  const checkAccess = handler('app/suspended/page.tsx', 'checkAccess', bindings)
+  await checkAccess()
+  assert.deepEqual(bindings.values.redirects, [])
+  assert.equal(bindings.values.reason, 'Safety report: other')
+  suspended = false
+  await checkAccess()
+  assert.deepEqual(bindings.values.redirects, ['/dashboard'])
+  assert.equal(reasonReads, 1)
+  assert.equal(bindings.values.checkError, '')
+})
+
+for (const [name, suspended, error] of [
+  ['failed RPC', null, { message: 'Unavailable' }],
+  ['missing response', null, null],
+  ['malformed response', 'false', null],
+]) test(`paused-page access check stays closed on ${name}`, async () => {
+  const bindings = state()
+  bindings.supabase = {
+    auth: { getUser: async () => ({ data: { user: { id: 'member' } }, error: null }) },
+    rpc: async () => ({ data: suspended, error }),
+  }
+  await handler('app/suspended/page.tsx', 'checkAccess', bindings)()
+  assert.deepEqual(bindings.values.redirects, [])
+  assert.ok(bindings.values.checkError.includes('try again'))
+  assert.equal(bindings.values.checking, false)
+})
+
+test('paused-page recheck redirects missing sessions and recovers after a transient failure', async () => {
+  const bindings = state()
+  bindings.supabase = { auth: { getUser: async () => ({ data: { user: null }, error: new AuthSessionMissingError() }) } }
+  const checkAccess = handler('app/suspended/page.tsx', 'checkAccess', bindings)
+  await checkAccess()
+  assert.deepEqual(bindings.values.redirects, ['/login'])
+  bindings.values.redirects.length = 0
+  bindings.supabase.auth.getUser = async () => { throw new Error('Network failure') }
+  await checkAccess()
+  assert.deepEqual(bindings.values.redirects, [])
+  assert.ok(bindings.values.checkError)
+  bindings.supabase.auth.getUser = async () => ({ data: { user: { id: 'member' } }, error: null })
+  bindings.supabase.rpc = async () => ({ data: false, error: null })
+  await checkAccess()
+  assert.deepEqual(bindings.values.redirects, ['/dashboard'])
+  assert.equal(bindings.values.checkError, '')
+})
+
+test('paused-page check cannot redirect after the member leaves the page', async () => {
+  const bindings = state()
+  bindings.supabase = {
+    auth: { getUser: async () => ({ data: { user: { id: 'member' } }, error: null }) },
+    rpc: async () => { bindings.active = false; return { data: false, error: null } },
+  }
+  await handler('app/suspended/page.tsx', 'checkAccess', bindings)()
+  assert.deepEqual(bindings.values.redirects, [])
 })
 test('auth errors and thrown network failures block access', async () => {
   for (const auth of [
