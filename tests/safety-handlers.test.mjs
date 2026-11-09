@@ -249,6 +249,28 @@ test('restore requests a lift without a new suspension reason or expiry', async 
   assert.equal(args.suspension_expires_at, null)
 })
 
+for (const [name, suspensionError, reviewError, expected] of [
+  ['both actions succeed', null, null, 'Account suspended for 30 days. Report marked resolved.'],
+  ['report resolution fails after suspension', null, { message: 'Connection lost' }, 'Account suspended for 30 days, but report resolution did not save: Connection lost'],
+  ['suspension fails', { message: 'Permission denied' }, null, 'Account was not suspended: Permission denied'],
+]) test(`suspension confirmation: ${name}`, async () => {
+  const bindings = state()
+  let loads = 0
+  Object.assign(bindings, {
+    notes: {}, load: async () => { loads++ },
+    supabase: { rpc: async (name, args) => {
+      bindings.values.calls.push({ name, args })
+      return { error: name === 'set_member_suspension' ? suspensionError : reviewError }
+    } },
+  })
+  bindings.review = handler('app/dashboard/admin/reports/page.tsx', 'review', { ...bindings })
+  await handler('app/dashboard/admin/reports/page.tsx', 'suspend', bindings)({ id: 'report', reported_user_id: 'target', category: 'other', resolution_notes: 'Private note' })
+  assert.equal(bindings.values.messages.at(-1), expected)
+  assert.deepEqual(bindings.values.calls.map(call => call.name), suspensionError ? ['set_member_suspension'] : ['set_member_suspension', 'review_member_report'])
+  assert.equal(loads, !suspensionError && !reviewError ? 1 : 0)
+  if (!suspensionError) assert.equal(bindings.values.calls[1].args.admin_notes, 'Private note')
+})
+
 test('policy checkbox blocks signup when unchecked', async () => {
   const bindings = state()
   bindings.accepted = false
