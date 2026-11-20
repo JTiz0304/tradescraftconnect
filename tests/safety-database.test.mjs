@@ -41,6 +41,7 @@ describe('Safety database regression', { concurrency: false }, () => {
     await db.exec(`
       create role authenticated nologin nosuperuser;
       create role anon nologin nosuperuser;
+      create role service_role nologin nosuperuser bypassrls;
       create schema auth; create schema storage;
       create table auth.users(id uuid primary key, email text, raw_user_meta_data jsonb default '{}');
       create function auth.uid() returns uuid language sql stable as $$
@@ -308,5 +309,141 @@ describe('Safety database regression', { concurrency: false }, () => {
     const row = (await as('target', 'select lifted_at,lifted_by from public.member_suspensions')).rows[0]
     assert.deepEqual(row, { lifted_at: null, lifted_by: null })
     assert.equal((await as('target', 'select public.is_user_suspended() as active')).rows[0].active, true)
+  })
+
+  const queue = async () => (await owner('select * from public.email_notification_deliveries order by queue_order')).rows
+  const send = (member = 'target') => as(member, "insert into public.application_messages(application_id,sender_id,recipient_id,body) values ($1,$2,$2,'Queue regression message') returning id", [id.application, id[member]])
+  const claim = async () => {
+    await db.exec('reset role; set local role service_role')
+    return (await db.query('select * from public.claim_email_notification_delivery()')).rows[0]
+  }
+  test('outbox: a committed application already has its email without any browser request', async () => {
+    const row = (await queue())[0]
+    assert.equal(row.event_type, 'new_application')
+    assert.equal(row.related_id, id.application)
+    assert.equal(row.recipient_id, id.target)
+    assert.equal(row.status, 'queued')
+    assert.equal(row.outbox_payload.subject, 'New application for Target job')
+  })
+  test('outbox: rollback removes both the business event and queued email', async () => {
+    await owner('savepoint business_action')
+    const message = (await send()).rows[0].id
+    assert.ok((await queue()).some(row => row.related_id === message))
+    await owner('rollback to savepoint business_action')
+    assert.equal((await owner('select id from public.application_messages where id=$1', [message])).rows.length, 0)
+    assert.equal((await queue()).some(row => row.related_id === message), false)
+  })
+  test('outbox: queue failure prevents an unrecorded business commit', async () => {
+    await owner(`create function tcc_email.test_queue_failure() returns trigger language plpgsql as $$ begin raise exception 'Queue unavailable'; end $$`)
+    await owner('create trigger test_queue_failure before insert on public.email_notification_deliveries for each row execute function tcc_email.test_queue_failure()')
+    await owner('savepoint failed_action')
+    await assert.rejects(send(), /Queue unavailable/)
+    await db.exec('rollback to savepoint failed_action')
+    assert.equal((await owner('select * from public.application_messages')).rows.length, 0)
+  })
+  test('outbox: both message directions derive recipients from the protected stored message', async () => {
+    const employer = (await send('target')).rows[0].id
+    const member = (await send('reporter')).rows[0].id
+    const rows = await queue()
+    assert.equal(rows.find(row => row.related_id === employer).recipient_id, id.reporter)
+    assert.equal(rows.find(row => row.related_id === member).recipient_id, id.target)
+  })
+  test('outbox: rapid status changes preserve each snapshot, including a return to the same status', async () => {
+    for (const status of ['reviewing', 'hired', 'reviewing']) await as('target', 'update public.job_applications set status=$1 where id=$2', [status, id.application])
+    const rows = (await queue()).filter(row => row.event_type === 'application_status')
+    assert.equal(rows.length, 3)
+    assert.equal(new Set(rows.map(row => row.event_key)).size, 3)
+    assert.match(rows[0].outbox_payload.message, /under review/)
+    assert.match(rows[1].outbox_payload.message, /marked as hired/)
+    assert.match(rows[2].outbox_payload.message, /under review/)
+    assert.ok(rows[0].queue_order < rows[1].queue_order)
+  })
+  test('outbox: old browser reservations conflict with the queued event rather than sending a second email', async () => {
+    const row = (await queue())[0]
+    await owner('savepoint old_browser')
+    await assert.rejects(owner("insert into public.email_notification_deliveries(event_key,event_type,related_id,recipient_id,status) values ($1,$2,$3,$4,'pending')", [row.event_key,row.event_type,row.related_id,row.recipient_id]), /unique constraint/)
+    await db.exec('rollback to savepoint old_browser')
+    assert.equal((await queue()).length, 1)
+  })
+  test('outbox: opt-out at event time is a terminal skipped record', async () => {
+    await as('reporter', 'update public.profiles set email_notifications_enabled=false where id=$1', [id.reporter])
+    const message = (await send()).rows[0].id
+    const row = (await queue()).find(row => row.related_id === message)
+    assert.equal(row.status, 'skipped')
+    await as('reporter', 'update public.profiles set email_notifications_enabled=true where id=$1', [id.reporter])
+    assert.equal((await queue()).find(row => row.related_id === message).status, 'skipped')
+  })
+  test('outbox: essential notices bypass opt-out and distinct cycles survive even within one transaction', async () => {
+    await as('target', 'update public.profiles set email_notifications_enabled=false where id=$1', [id.target])
+    for (let cycle=0; cycle<2; cycle++) {
+      await suspend()
+      await as('admin', 'select public.set_member_suspension($1,false,null,null)', [id.target])
+    }
+    const rows = (await queue()).filter(row => row.event_type === 'account_suspension')
+    assert.equal(rows.length, 4)
+    assert.equal(new Set(rows.map(row => row.event_key)).size, 4)
+    assert.ok(rows.every(row => row.status === 'queued' && row.outbox_payload.essential))
+    assert.deepEqual(rows.map(row => row.outbox_payload.heading), ['Account Access Paused','Account Access Restored','Account Access Paused','Account Access Restored'])
+    await as('admin', 'select public.set_member_suspension($1,false,null,null)', [id.target])
+    assert.equal((await queue()).filter(row => row.event_type === 'account_suspension').length, 4)
+  })
+  test('outbox: credential decisions retain snapshots after source deletion without leaking review notes', async () => {
+    const cert = (await as('reporter', "insert into public.certifications(user_id,file_url,file_name,cert_name,verification_status) values ($1,'private/file.pdf','file.pdf','Test credential','pending') returning id", [id.reporter])).rows[0].id
+    await as('admin', "select public.review_certification($1,'verified',null)", [cert])
+    await as('admin', "select public.review_certification($1,'rejected','Private reviewer note')", [cert])
+    await as('reporter', 'delete from public.certifications where id=$1', [cert])
+    const rows = (await queue()).filter(row => row.related_id === cert)
+    assert.equal(rows.length, 2)
+    assert.equal(rows[0].outbox_payload.subject, 'Certification approved')
+    assert.equal(rows[1].outbox_payload.subject, 'Certification needs attention')
+    assert.equal(JSON.stringify(rows).includes('Private reviewer note'), false)
+    assert.equal(JSON.stringify(rows).includes('private/file.pdf'), false)
+  })
+  test('outbox: read receipts and unchanged statuses do not create email events', async () => {
+    const message = (await send()).rows[0].id
+    const count = (await queue()).length
+    await as('reporter', 'update public.application_messages set read_at=now() where id=$1', [message])
+    await as('target', "update public.job_applications set status='new' where id=$1", [id.application])
+    assert.equal((await queue()).length, count)
+  })
+  test('outbox: claims lease one event per recipient and a stale worker cannot finish a reclaimed lease', async () => {
+    await send('target'); await send('reporter')
+    const first = await claim()
+    const differentRecipient = await claim()
+    assert.notEqual(first.recipient_id, differentRecipient.recipient_id)
+    assert.equal(await claim(), undefined)
+    await owner("update public.email_notification_deliveries set locked_until=now()-interval '1 second' where id=$1", [first.id])
+    const retry = await claim()
+    assert.equal(retry.id, first.id)
+    assert.notEqual(retry.claim_token, first.claim_token)
+    assert.equal(retry.attempts, 2)
+    assert.equal((await owner("update public.email_notification_deliveries set status='sent' where id=$1 and claim_token=$2 returning id", [first.id,first.claim_token])).rows.length, 0)
+  })
+  test('outbox: unattempted backlog can be older than the provider window', async () => {
+    await owner("update public.email_notification_deliveries set created_at=now()-interval '3 days'")
+    assert.ok((await claim()).claim_token)
+  })
+  test('outbox: an attempted event outside the provider window requires review without a resend', async () => {
+    await owner("update public.email_notification_deliveries set status='failed',first_attempt_at=now()-interval '24 hours'")
+    assert.equal(await claim(), undefined)
+    assert.equal((await queue())[0].status, 'needs_review')
+  })
+  test('outbox: legacy ambiguous deliveries are preserved and never auto-claimed', async () => {
+    await owner("update public.email_notification_deliveries set status='sent'")
+    await owner("insert into public.email_notification_deliveries(event_key,event_type,related_id,recipient_id,status) values ('legacy','application_message',$1,$2,'pending')", [id.application,id.reporter])
+    assert.equal(await claim(), undefined)
+    assert.equal((await queue()).find(row => row.event_key === 'legacy').status, 'pending')
+  })
+  test('outbox: members cannot read/write queue contents, execute the enqueuer or claim work', async () => {
+    for (const role of ['anon','reporter']) for (const sql of [
+      'select * from public.email_notification_deliveries',
+      "update public.email_notification_deliveries set outbox_payload='{}'",
+      'select * from public.claim_email_notification_delivery()',
+      'select tcc_email.enqueue_event()',
+    ]) {
+      await owner('savepoint forbidden_queue')
+      await assert.rejects(as(role, sql), /permission denied/)
+      await db.exec('rollback to savepoint forbidden_queue')
+    }
   })
 })

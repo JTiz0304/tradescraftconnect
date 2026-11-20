@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
-import { sendEmailNotification } from '../../../lib/emailNotifications'
 import SaveItemButton from '../../../components/SaveItemButton'
 import ReportButton from '../../../components/ReportButton'
 
@@ -79,8 +78,6 @@ export default function JobDetailPage() {
       setSubmitting(false)
       return
     }
-
-    void sendEmailNotification('new_application', application.id)
 
     setAlreadyApplied(true)
     setApplicationStatus('new')

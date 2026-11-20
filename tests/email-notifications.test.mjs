@@ -3,271 +3,220 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { timingSafeEqual } from 'node:crypto'
 
-const source = readFileSync(new URL('../app/api/email-notifications/route.ts', import.meta.url), 'utf8')
-const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText
+const compile = path => ts.transpileModule(readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText
+const compiled = compile('app/lib/emailQueue.ts')
+const route = compile('app/api/email-notifications/process/route.ts')
+const compatibility = compile('app/api/email-notifications/route.ts')
+const config = { apiKey: 'isolated-test-key', from: 'Test <sender@example.invalid>', origin: 'https://app.example.invalid' }
+const content = { subject: 'Application update', heading: 'Test <heading>', message: 'Private message <script>alert(1)</script>', link: '/dashboard/my-applications', buttonLabel: 'View & review', essential: false }
 
-// Exercise the real server endpoint with in-memory database/provider boundaries.
-// There are no real credentials, live queries, new accounts, or outbound emails.
+// Actual worker and route, simulated database/provider boundaries. No credentials
+// or network access. Real queue SQL/roles/transactions are covered separately.
 function harness() {
-  const ctx = {
-    tables: {
-      profiles: [
-        { id: 'employer', full_name: 'Employer', email: 'employer@example.invalid', email_notifications_enabled: true },
-        { id: 'worker', full_name: 'Worker', email: 'worker@example.invalid', email_notifications_enabled: true },
-        { id: 'admin', full_name: 'Admin', email: 'admin@example.invalid', email_notifications_enabled: true },
-      ],
-      admin_users: [{ user_id: 'admin' }],
-      job_postings: [{ id: 'job', poster_id: 'employer', title: 'Electrician opportunity' }],
-      job_applications: [{ id: 'application', applicant_id: 'worker', job_id: 'job', status: 'reviewing' }],
-      application_messages: [{ id: 'message', application_id: 'application', sender_id: 'worker', recipient_id: 'employer' }],
-      certifications: [{ id: 'certificate', user_id: 'worker', cert_name: 'Test licence', verification_status: 'verified' }],
-      member_suspensions: [{ user_id: 'worker', reason: 'Safety report: unsafe', suspended_at: '2026-11-01T00:00:00Z', expires_at: '2026-12-01T00:00:00Z', lifted_at: null }],
-      email_notification_deliveries: [],
-    },
-    sendCalls: [], suspended: new Set(), reservationFailure: false, lookupFailure: false,
-    logFailure: false, providerThrows: false, malformedProvider: false,
-    providerError: null, accessError: null, accessData: undefined, authError: false,
-    env: {
-      NEXT_PUBLIC_SUPABASE_URL: 'https://test.supabase.invalid', NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-anon',
-      SUPABASE_SERVICE_ROLE_KEY: 'test-service', RESEND_API_KEY: 'test-resend', EMAIL_FROM: 'Test <test@example.invalid>',
-    },
-  }
-  let nextId = 0
+  const row = { id: 'delivery', recipient_id: 'member', event_key: 'application_status:event:reviewing', status: 'queued', attempts: 0, first_attempt_at: null, provider_payload: null, outbox_payload: { ...content }, available_at: new Date(0).toISOString(), claim_token: null, locked_until: null }
+  const ctx = { rows: [row], row, calls: [], accepted: new Map(), enabled: true, email: 'confirmed@example.invalid', confirmed: true, userMissing: false, profileMissing: false, identityError: false, preferenceError: false, claimError: false, freezeError: false, logError: false, providerStatus: 200, providerName: 'test_error', providerMalformed: false, loseResponse: false }
+  let token = 0
   class Query {
-    constructor(table) { this.table = table; this.filters = []; this.op = 'read' }
+    constructor(table) { this.table = table; this.filters = [] }
     select() { return this }
-    eq(key, value) { this.filters.push([key, value]); return this }
-    insert(payload) { this.op = 'insert'; this.payload = payload; return this }
-    update(payload) { this.op = 'update'; this.payload = payload; return this }
-    matches(row) { return this.filters.every(([key, value]) => row[key] === value) }
-    run() {
-      const rows = ctx.tables[this.table]
-      if (!rows) return { data: null, error: { code: '42P01', message: 'Missing table' } }
-      if (this.op === 'read') {
-        if (this.table === 'email_notification_deliveries' && ctx.lookupFailure) return { data: null, error: { message: 'Lookup failed' } }
-        return { data: rows.filter(row => this.matches(row)).map(row => ({ ...row })), error: null }
-      }
-      if (this.op === 'insert') {
-        if (ctx.reservationFailure) return { data: null, error: { code: '42P01', message: 'Reservation failed' } }
-        if (rows.some(row => row.event_key === this.payload.event_key && row.recipient_id === this.payload.recipient_id)) {
-          return { data: null, error: { code: '23505', message: 'Unique constraint' } }
-        }
-        const row = { id: `delivery-${++nextId}`, created_at: new Date().toISOString(), ...this.payload }
-        rows.push(row)
-        return { data: [{ ...row }], error: null }
-      }
-      if (this.op === 'update') {
-        if (this.payload.status === 'sent' && ctx.logFailure) return { data: null, error: { message: 'Logging unavailable' } }
-        const matched = rows.filter(row => this.matches(row))
-        matched.forEach(row => Object.assign(row, this.payload))
-        return { data: matched.map(row => ({ ...row })), error: null }
-      }
-      throw new Error(`Unsupported operation: ${this.op}`)
-    }
-    async single() { const r = this.run(); return r.error ? r : { data: r.data[0] ?? null, error: r.data.length === 1 ? null : { message: 'Expected one row' } } }
-    async maybeSingle() { const r = this.run(); return r.error ? r : { data: r.data[0] ?? null, error: null } }
-    then(resolve, reject) { return Promise.resolve(this.run()).then(resolve, reject) }
-  }
-  const createClient = (_url, key, options) => {
-    if (key === 'test-service') return { from: table => new Query(table) }
-    const actor = options.global.headers.Authorization.replace('Bearer test-', '')
-    return {
-      auth: { getUser: async () => ({ data: { user: actor === 'invalid' ? null : { id: actor } }, error: ctx.authError ? { message: 'Auth failed' } : null }) },
-      rpc: async () => ({ data: ctx.accessData === undefined ? ctx.suspended.has(actor) : ctx.accessData, error: ctx.accessError }),
+    eq(key, value) { this.filters.push([key,value]); return this }
+    update(values) { this.values = values; return this }
+    async maybeSingle() {
+      if (this.table === 'profiles') return { data: ctx.profileMissing ? null : { email_notifications_enabled: ctx.enabled, email: 'unverified-editable@example.invalid' }, error: ctx.preferenceError ? { message: 'Offline' } : null }
+      const match = ctx.rows.find(r => this.filters.every(([key,value]) => r[key] === value))
+      if (!match) return { data: null, error: null }
+      if ((this.values.provider_payload && ctx.freezeError) || (this.values.status === 'sent' && ctx.logError)) return { data: null, error: { message: 'Write unavailable' } }
+      Object.assign(match, structuredClone(this.values))
+      return { data: { id: match.id }, error: null }
     }
   }
-  class Resend {
-    emails = { send: async (payload, options) => {
-      ctx.sendCalls.push({ payload, options })
-      if (ctx.providerThrows) throw new Error('Provider response lost')
-      if (ctx.providerError) return { data: null, error: ctx.providerError }
-      return { data: ctx.malformedProvider ? null : { id: `provider-${ctx.sendCalls.length}` }, error: null }
-    } }
+  ctx.admin = {
+    from: table => new Query(table),
+    rpc: async () => {
+      if (ctx.claimError) return { data: null, error: { message: 'Queue unavailable' } }
+      const candidate = ctx.rows.find(r => Date.parse(r.available_at) <= Date.now() && (['queued','failed'].includes(r.status) || (r.status === 'pending' && Date.parse(r.locked_until) <= Date.now())))
+      if (!candidate) return { data: [], error: null }
+      candidate.status = 'pending'; candidate.attempts++; candidate.claim_token = `lease-${++token}`; candidate.locked_until = new Date(Date.now()+300000).toISOString()
+      return { data: [structuredClone(candidate)], error: null }
+    },
+    auth: { admin: { getUserById: async () => ({ data: { user: ctx.userMissing ? null : { email: ctx.email, email_confirmed_at: ctx.confirmed ? '2026-01-01T00:00:00Z' : null } }, error: ctx.identityError ? { status: 503 } : ctx.userMissing ? { status: 404 } : null }) } },
   }
   const exports = {}
-  vm.runInNewContext(compiled, {
-    exports, process: { env: ctx.env }, URL,
-    require: name => {
+  vm.runInNewContext(compiled, { exports, URL, AbortSignal, Response, fetch: async (url, options) => {
+    assert.equal(url, 'https://api.resend.com/emails')
+    ctx.calls.push({ ...options, payload: JSON.parse(options.body) })
+    if (ctx.providerStatus !== 200) return Response.json({ name: ctx.providerName }, { status: ctx.providerStatus })
+    const key = options.headers['Idempotency-Key']
+    if (!ctx.accepted.has(key)) ctx.accepted.set(key, { id: `provider-${ctx.accepted.size+1}`, body: options.body })
+    else assert.equal(options.body, ctx.accepted.get(key).body, 'Provider retries must be byte-identical')
+    if (ctx.loseResponse) throw new Error('Lost provider response')
+    return Response.json(ctx.providerMalformed ? {} : { id: ctx.accepted.get(key).id })
+  } })
+  ctx.process = (overrides = {}) => exports.processEmailQueue(ctx.admin, { ...config, ...overrides })
+  ctx.render = exports.renderEmail
+  ctx.due = () => { row.available_at = new Date(0).toISOString(); row.locked_until = new Date(0).toISOString() }
+  ctx.route = async (env = {}, authorization = 'Bearer ' + 's'.repeat(40)) => {
+    const result = {}
+    const settings = { EMAIL_WORKER_SECRET: 's'.repeat(40), NEXT_PUBLIC_SUPABASE_URL: 'https://test.supabase.invalid', SUPABASE_SERVICE_ROLE_KEY: 'test-service', RESEND_API_KEY: 'test-resend', EMAIL_FROM: config.from, EMAIL_APP_URL: config.origin, ...env }
+    vm.runInNewContext(route, { exports: result, process: { env: settings }, Buffer, URL, console: { info() {}, error() {} }, require: name => {
+      if (name === 'node:crypto') return { timingSafeEqual }
       if (name === 'next/server') return { NextResponse: { json: (body, init) => Response.json(body, init) } }
-      if (name === '@supabase/supabase-js') return { createClient }
-      if (name === 'resend') return { Resend }
-      throw new Error(`Unexpected import: ${name}`)
-    },
-  })
-  ctx.request = (eventType = 'application_message', relatedId = 'message', actor = 'worker', authenticated = true) => exports.POST(new Request('https://preview.example.invalid/api/email-notifications', {
-    method: 'POST', headers: { 'content-type': 'application/json', ...(authenticated ? { authorization: `Bearer test-${actor}` } : {}) },
-    body: JSON.stringify({ eventType, relatedId }),
-  }))
+      if (name === '@supabase/supabase-js') return { createClient: () => ctx.admin }
+      if (name.endsWith('/emailQueue')) return { processEmailQueue: exports.processEmailQueue }
+      throw new Error(`Unexpected import ${name}`)
+    } })
+    return result.POST(new Request('https://untrusted-host.example.invalid/api/email-notifications/process', { method: 'POST', headers: authorization ? { authorization } : {} }))
+  }
   return ctx
 }
 
-test('message email goes to the persisted recipient, not the sender', async () => {
-  const ctx = harness()
-  assert.equal((await ctx.request()).status, 200)
-  assert.equal(ctx.sendCalls[0].payload.to, 'employer@example.invalid')
-  assert.equal(ctx.tables.email_notification_deliveries[0].recipient_id, 'employer')
-  assert.equal(ctx.tables.email_notification_deliveries[0].status, 'sent')
-  assert.ok(ctx.sendCalls[0].options.idempotencyKey.includes('application_message:message'))
-  assert.ok(ctx.sendCalls[0].options.idempotencyKey.length <= 256)
+test('queued event sends without a browser and uses confirmed Auth email instead of editable profile email', async () => {
+  const ctx = harness(); const result = await ctx.process()
+  assert.equal(result.sent, 1); assert.equal(ctx.row.status, 'sent')
+  assert.equal(ctx.calls[0].payload.to, 'confirmed@example.invalid')
+  assert.ok(ctx.row.first_attempt_at); assert.ok(ctx.row.provider_payload)
+  assert.equal(ctx.row.provider_message_id, 'provider-1')
+  assert.ok(ctx.calls[0].headers['Idempotency-Key'].length <= 256)
 })
-test('employer-to-applicant messages notify the applicant', async () => {
-  const ctx = harness()
-  Object.assign(ctx.tables.application_messages[0], { sender_id: 'employer', recipient_id: 'worker' })
-  assert.equal((await ctx.request('application_message', 'message', 'employer')).status, 200)
-  assert.equal(ctx.sendCalls[0].payload.to, 'worker@example.invalid')
+test('completed sends are not claimed or delivered twice', async () => {
+  const ctx = harness(); await ctx.process(); await ctx.process()
+  assert.equal(ctx.calls.length, 1); assert.equal(ctx.accepted.size, 1)
 })
-test('another member cannot trigger someone else’s message notification', async () => {
-  const ctx = harness()
-  assert.equal((await ctx.request('application_message', 'message', 'outsider')).status, 403)
-  assert.equal(ctx.sendCalls.length, 0)
+test('overlapping worker invocations do not share an active lease', async () => {
+  const ctx = harness(); await Promise.all([ctx.process(),ctx.process()])
+  assert.equal(ctx.calls.length, 1)
 })
-test('application status changes notify the applicant only when requested by the employer', async () => {
-  const ctx = harness()
-  ctx.tables.job_applications[0].status = 'hired'
-  assert.equal((await ctx.request('application_status', 'application', 'employer')).status, 200)
-  assert.equal(ctx.sendCalls[0].payload.to, 'worker@example.invalid')
-  assert.ok(ctx.sendCalls[0].payload.html.includes('hired'))
-  assert.equal((await ctx.request('application_status', 'application', 'worker')).status, 403)
+test('recipient opting out after enqueue suppresses the unsent notice', async () => {
+  const ctx = harness(); ctx.enabled = false; const result = await ctx.process()
+  assert.equal(result.skipped, 1); assert.equal(ctx.calls.length, 0)
 })
-test('new applications notify the employer', async () => {
-  const ctx = harness()
-  assert.equal((await ctx.request('new_application', 'application')).status, 200)
-  assert.equal(ctx.sendCalls[0].payload.to, 'employer@example.invalid')
+test('essential account notices still send after optional-email opt-out', async () => {
+  const ctx = harness(); ctx.enabled = false; ctx.row.outbox_payload.essential = true
+  assert.equal((await ctx.process()).sent, 1)
 })
-test('missing and invalid authentication are rejected', async () => {
-  const ctx = harness()
-  assert.equal((await ctx.request('application_message', 'message', 'worker', false)).status, 401)
-  assert.equal((await ctx.request('application_message', 'message', 'invalid')).status, 401)
-  ctx.authError = true
-  assert.equal((await ctx.request()).status, 401)
-  assert.equal(ctx.sendCalls.length, 0)
+test('unconfirmed, deleted or missing recipients are skipped before provider contact', async () => {
+  for (const change of [{ confirmed: false },{ userMissing: true },{ profileMissing: true }]) {
+    const ctx = harness(); Object.assign(ctx, change)
+    assert.equal((await ctx.process()).skipped, 1); assert.equal(ctx.calls.length, 0)
+  }
 })
-test('missing email configuration does not send', async () => {
-  const ctx = harness()
-  delete ctx.env.SUPABASE_SERVICE_ROLE_KEY
-  assert.equal((await ctx.request()).status, 503)
-  assert.equal(ctx.sendCalls.length, 0)
+test('identity and preference lookup failures retry without provider contact', async () => {
+  for (const key of ['identityError','preferenceError']) {
+    const ctx = harness(); ctx[key] = true
+    assert.equal((await ctx.process()).failed, 1); assert.equal(ctx.calls.length, 0)
+    assert.ok(Date.parse(ctx.row.available_at) > Date.now())
+  }
 })
-test('suspended callers cannot use the service-role email endpoint', async () => {
-  const ctx = harness()
-  ctx.suspended.add('worker')
-  assert.equal((await ctx.request()).status, 403)
-  assert.equal(ctx.sendCalls.length, 0)
+test('repeated recipient-verification failures become visible review work', async () => {
+  const ctx = harness(); ctx.identityError = true; ctx.row.attempts = 9
+  assert.equal((await ctx.process()).needs_review, 1)
 })
-test('missing suspension RPC or an unknown result blocks sending', async () => {
-  const ctx = harness()
-  ctx.accessError = { message: 'Function missing' }
-  assert.equal((await ctx.request()).status, 503)
-  ctx.accessError = null
-  ctx.accessData = null
-  assert.equal((await ctx.request()).status, 503)
-  assert.equal(ctx.sendCalls.length, 0)
+test('failure to freeze provider payload prevents a send', async () => {
+  const ctx = harness(); ctx.freezeError = true
+  assert.equal((await ctx.process()).unrecorded, 1); assert.equal(ctx.calls.length, 0)
+  assert.equal(ctx.row.status, 'pending')
 })
-test('nonessential email respects recipient opt-out', async () => {
-  const ctx = harness()
-  ctx.tables.profiles[0].email_notifications_enabled = false
-  const response = await ctx.request()
-  assert.equal((await response.json()).skipped, true)
-  assert.equal(ctx.sendCalls.length, 0)
-  assert.equal(ctx.tables.email_notification_deliveries.length, 0)
+test('lost response retries the exact frozen request even after sender/origin configuration changes', async () => {
+  const ctx = harness(); ctx.loseResponse = true
+  assert.equal((await ctx.process()).failed, 1); assert.equal(ctx.accepted.size, 1)
+  ctx.loseResponse = false; ctx.due()
+  assert.equal((await ctx.process({ from: 'Changed <changed@example.invalid>', origin: 'https://changed.example.invalid' })).sent, 1)
+  assert.equal(ctx.calls.length, 2); assert.equal(ctx.accepted.size, 1)
+  assert.equal(ctx.calls[0].body, ctx.calls[1].body)
 })
-test('mandatory account-access notice is delivered despite opt-out', async () => {
-  const ctx = harness()
-  ctx.tables.profiles[1].email_notifications_enabled = false
-  assert.equal((await ctx.request('account_suspension', 'worker', 'admin')).status, 200)
-  assert.equal(ctx.sendCalls[0].payload.to, 'worker@example.invalid')
-  assert.equal((await ctx.request('account_suspension', 'worker')).status, 403)
+test('an interrupted success-log write recovers with the original provider idempotency key', async () => {
+  const ctx = harness(); ctx.logError = true
+  assert.equal((await ctx.process()).unrecorded, 1)
+  assert.equal(ctx.row.status, 'pending'); ctx.logError = false; ctx.due()
+  assert.equal((await ctx.process()).sent, 1); assert.equal(ctx.accepted.size, 1)
 })
-test('credential decisions require administrator access', async () => {
-  const ctx = harness()
-  assert.equal((await ctx.request('certification_review', 'certificate')).status, 403)
-  assert.equal((await ctx.request('certification_review', 'certificate', 'admin')).status, 200)
-  assert.equal(ctx.sendCalls[0].payload.to, 'worker@example.invalid')
+test('an interrupted worker recovers a pre-frozen request after its lease expires', async () => {
+  const ctx = harness(); ctx.row.status = 'pending'; ctx.row.claim_token = 'abandoned'
+  ctx.row.locked_until = new Date(Date.now()+300000).toISOString()
+  ctx.row.first_attempt_at = new Date().toISOString()
+  ctx.row.provider_payload = { from: config.from, to: ctx.email, subject: 'Original', html: '<p>Frozen original</p>' }
+  assert.equal((await ctx.process()).sent, 0); ctx.due()
+  assert.equal((await ctx.process()).sent, 1)
+  assert.equal(ctx.calls[0].payload.subject, 'Original')
 })
-test('separate restorations each notify once', async () => {
-  const ctx = harness()
-  const suspension = ctx.tables.member_suspensions[0]
-  suspension.lifted_at = '2026-11-02T00:00:00Z'
-  assert.equal((await ctx.request('account_suspension', 'worker', 'admin')).status, 200)
-  suspension.lifted_at = '2026-11-03T00:00:00Z'
-  assert.equal((await ctx.request('account_suspension', 'worker', 'admin')).status, 200)
-  assert.equal((await ctx.request('account_suspension', 'worker', 'admin')).status, 200)
-  assert.equal(ctx.sendCalls.length, 2)
-  assert.notEqual(ctx.sendCalls[0].options.idempotencyKey, ctx.sendCalls[1].options.idempotencyKey)
+test('attempts outside the provider safety window require review without replay', async () => {
+  const ctx = harness(); ctx.row.first_attempt_at = new Date(Date.now()-24*60*60*1000).toISOString()
+  assert.equal((await ctx.process()).needs_review, 1); assert.equal(ctx.calls.length, 0)
 })
-test('a repeated successful event does not send twice', async () => {
-  const ctx = harness()
-  await ctx.request()
-  const repeated = await ctx.request()
-  assert.equal((await repeated.json()).duplicate, true)
-  assert.equal(ctx.sendCalls.length, 1)
+test('an old unattempted queue item can still send', async () => {
+  const ctx = harness(); ctx.row.created_at = new Date(Date.now()-3*24*60*60*1000).toISOString()
+  assert.equal((await ctx.process()).sent, 1)
 })
-test('simultaneous duplicate requests reserve only one sender', async () => {
-  const ctx = harness()
-  const responses = await Promise.all([ctx.request(), ctx.request(), ctx.request()])
-  assert.ok(responses.every(response => [200, 202].includes(response.status)))
-  assert.equal(ctx.sendCalls.length, 1)
-  assert.equal(ctx.tables.email_notification_deliveries.length, 1)
+test('changed recipient or opt-out after an uncertain attempt requires reconciliation', async () => {
+  for (const change of [{ email: 'changed@example.invalid' },{ enabled: false }]) {
+    const ctx = harness(); ctx.loseResponse = true; await ctx.process(); ctx.loseResponse = false; ctx.due(); Object.assign(ctx,change)
+    assert.equal((await ctx.process()).needs_review, 1); assert.equal(ctx.calls.length, 1)
+  }
 })
-test('recent failed sends retry with the same provider idempotency key', async () => {
-  const ctx = harness()
-  ctx.providerError = { message: 'Temporary rejection' }
-  assert.equal((await ctx.request()).status, 502)
-  assert.equal(ctx.tables.email_notification_deliveries[0].status, 'failed')
-  ctx.providerError = null
-  assert.equal((await ctx.request()).status, 200)
-  assert.equal(ctx.sendCalls.length, 2)
-  assert.equal(ctx.sendCalls[0].options.idempotencyKey, ctx.sendCalls[1].options.idempotencyKey)
+test('transient provider errors back off and later succeed', async () => {
+  for (const status of [408,429,500,503]) {
+    const ctx = harness(); ctx.providerStatus = status
+    assert.equal((await ctx.process()).failed, 1); assert.ok(Date.parse(ctx.row.available_at) > Date.now())
+    ctx.providerStatus = 200; ctx.due(); assert.equal((await ctx.process()).sent, 1)
+    assert.equal(ctx.calls[0].headers['Idempotency-Key'], ctx.calls[1].headers['Idempotency-Key'])
+  }
 })
-test('simultaneous retries claim a failed delivery once', async () => {
-  const ctx = harness()
-  ctx.providerError = { message: 'Temporary rejection' }
-  await ctx.request()
-  ctx.providerError = null
-  await Promise.all([ctx.request(), ctx.request()])
-  assert.equal(ctx.sendCalls.length, 2)
-  assert.equal(ctx.tables.email_notification_deliveries[0].status, 'sent')
+test('permanent provider rejection and conflicting request keys require review', async () => {
+  for (const status of [400,401,403,409,422]) {
+    const ctx = harness(); ctx.providerStatus = status
+    assert.equal((await ctx.process()).needs_review, 1); await ctx.process(); assert.equal(ctx.calls.length, 1)
+  }
 })
-test('failed reservations stop before contacting the provider', async () => {
-  const ctx = harness()
-  ctx.reservationFailure = true
-  assert.equal((await ctx.request()).status, 503)
-  assert.equal(ctx.sendCalls.length, 0)
+test('provider concurrent-idempotency response is safely retried', async () => {
+  const ctx = harness(); ctx.providerStatus = 409; ctx.providerName = 'concurrent_idempotent_requests'
+  assert.equal((await ctx.process()).failed, 1)
 })
-test('failed duplicate lookups do not send again', async () => {
-  const ctx = harness()
-  await ctx.request()
-  ctx.lookupFailure = true
-  assert.equal((await ctx.request()).status, 503)
-  assert.equal(ctx.sendCalls.length, 1)
+test('missing provider message ID is retried using the durable envelope', async () => {
+  const ctx = harness(); ctx.providerMalformed = true
+  assert.equal((await ctx.process()).failed, 1); ctx.providerMalformed = false; ctx.due()
+  assert.equal((await ctx.process()).sent, 1); assert.equal(ctx.accepted.size, 1)
 })
-test('old failed deliveries require review outside the provider safety window', async () => {
-  const ctx = harness()
-  ctx.tables.email_notification_deliveries.push({ id: 'old', event_key: 'application_message:message', recipient_id: 'employer', status: 'failed', created_at: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString() })
-  assert.equal((await ctx.request()).status, 409)
-  assert.equal(ctx.sendCalls.length, 0)
+test('queued HTML and labels are escaped; unsafe links cannot reach the provider', async () => {
+  const ctx = harness(); await ctx.process()
+  assert.ok(ctx.calls[0].payload.html.includes('&lt;script&gt;'))
+  assert.ok(ctx.calls[0].payload.html.includes('View &amp; review'))
+  for (const link of ['//evil.example.invalid/dashboard/test','https://evil.example.invalid','/dashboard/../../outside']) {
+    const other = harness(); other.row.outbox_payload.link = link
+    assert.equal((await other.process()).needs_review, 1); assert.equal(other.calls.length, 0)
+  }
 })
-test('lost provider response leaves a pending reservation and prevents blind resend', async () => {
-  const ctx = harness()
-  ctx.providerThrows = true
-  assert.equal((await ctx.request()).status, 503)
-  ctx.providerThrows = false
-  assert.equal((await ctx.request()).status, 202)
-  assert.equal(ctx.tables.email_notification_deliveries[0].status, 'pending')
-  assert.equal(ctx.sendCalls.length, 1)
+test('worker batches remain bounded', async () => {
+  const ctx = harness(); for (let index=1;index<12;index++) ctx.rows.push({ ...structuredClone(ctx.row), id:`delivery-${index}`, event_key:`event-${index}` })
+  assert.equal((await ctx.process()).sent, 10); assert.equal(ctx.calls.length, 10)
 })
-test('failure to record provider success does not report a clean success or resend', async () => {
-  const ctx = harness()
-  ctx.logFailure = true
-  assert.equal((await ctx.request()).status, 503)
-  ctx.logFailure = false
-  assert.equal((await ctx.request()).status, 202)
-  assert.equal(ctx.sendCalls.length, 1)
+test('worker claim errors fail without contacting the provider', async () => {
+  const ctx = harness(); ctx.claimError = true; await assert.rejects(ctx.process(), /Could not claim/); assert.equal(ctx.calls.length, 0)
 })
-test('missing provider message ID remains an uncertain delivery', async () => {
+test('worker route rejects missing/wrong credentials before reading the queue', async () => {
   const ctx = harness()
-  ctx.malformedProvider = true
-  assert.equal((await ctx.request()).status, 503)
-  assert.equal(ctx.tables.email_notification_deliveries[0].status, 'pending')
+  for (const auth of ['', 'Bearer wrong', 'Bearer '+'x'.repeat(40)]) assert.equal((await ctx.route({},auth)).status, 401)
+  assert.equal(ctx.row.attempts, 0)
+})
+test('missing worker secret/configuration stays closed', async () => {
+  const ctx = harness()
+  for (const env of [{ EMAIL_WORKER_SECRET: '' },{ EMAIL_WORKER_SECRET: 'short' },{ RESEND_API_KEY: '' },{ EMAIL_APP_URL: '' }]) assert.equal((await ctx.route(env)).status, 503)
+  assert.equal(ctx.row.attempts, 0)
+})
+test('route uses configured canonical links and returns only aggregate counts', async () => {
+  const ctx = harness(); const response = await ctx.route(); assert.equal(response.status, 200)
+  const result = await response.json(); assert.equal(result.sent, 1)
+  assert.equal(JSON.stringify(result).includes(ctx.email), false)
+  assert.ok(ctx.calls[0].payload.html.includes(config.origin+'/dashboard/my-applications'))
+})
+test('invalid canonical origins and queue errors return a service error', async () => {
+  const ctx = harness()
+  for (const origin of ['http://app.example.invalid','https://app.example.invalid/','https://user:pass@app.example.invalid']) assert.equal((await ctx.route({ EMAIL_APP_URL: origin })).status, 503)
+  ctx.claimError = true; assert.equal((await ctx.route()).status, 503)
+})
+test('legacy browser endpoint is inert and accepts no request-supplied event', async () => {
+  const exports = {}; vm.runInNewContext(compatibility, { exports, require: () => ({ NextResponse: { json: (body,init) => Response.json(body,init) } }) })
+  const response = await exports.POST(new Request('https://app.example.invalid/api/email-notifications', { method: 'POST', body: JSON.stringify({ eventType:'account_suspension',relatedId:'someone-else' }) }))
+  assert.equal(response.status, 202); assert.deepEqual(await response.json(), { queuedByBusinessEvent:true })
 })

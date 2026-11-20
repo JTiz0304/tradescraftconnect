@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:email": "node --test tests/email-notifications.test.mjs",
+    "test:email": "node --test tests/email-*.test.mjs",
     "test:safety": "node --test tests/safety-*.test.mjs"
   },
   "dependencies": {
