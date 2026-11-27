@@ -1,4 +1,4 @@
-import { timingSafeEqual } from 'node:crypto'
+import { createHmac, timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { processEmailQueue } from '../../../lib/emailQueue'
@@ -8,9 +8,13 @@ export const maxDuration = 60
 export async function POST(request: Request) {
   const secret = process.env.EMAIL_WORKER_SECRET
   if (!secret || secret.length < 32) return NextResponse.json({ error: 'Email worker is not configured' }, { status: 503 })
-  const authorization = Buffer.from(request.headers.get('authorization') ?? '')
-  const expected = Buffer.from(`Bearer ${secret}`)
-  if (authorization.length !== expected.length || !timingSafeEqual(authorization, expected)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // pg_net request headers may be readable by database roles. Store only a
+  // short-lived signature there, never the reusable worker credential.
+  const signature = /^TCC-HMAC (\d{10,12}):([a-f0-9]{64})$/.exec(request.headers.get('authorization') ?? '')
+  if (!signature) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const age = Date.now() / 1000 - Number(signature[1])
+  const expected = createHmac('sha256', secret).update(`POST:/api/email-notifications/process:${signature[1]}`).digest()
+  if (age < -15 || age > 120 || !timingSafeEqual(Buffer.from(signature[2], 'hex'), expected)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   const apiKey = process.env.RESEND_API_KEY

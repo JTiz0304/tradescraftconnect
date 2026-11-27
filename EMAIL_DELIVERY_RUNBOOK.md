@@ -22,7 +22,7 @@ not included in email snapshots.
 
 ## Worker and scheduler
 
-`POST /api/email-notifications/process` requires the private worker bearer secret.
+`POST /api/email-notifications/process` requires a timestamped HMAC signature made with the private worker secret.
 It claims at most ten items per request and stops claiming after 45 seconds;
 Vercel's function maximum is 60 seconds. Each item has a five-minute lease and a
 random claim token. Conditional updates prevent an obsolete worker completing a
@@ -31,8 +31,11 @@ reclaimed lease. Work is ordered per recipient; different recipients can proceed
 Supabase Cron wakes the worker every minute through pg_net, only when work is due.
 The cron command contains no credential. A private function reads the worker URL
 and secret from Vault and refuses any URL except the canonical production worker.
-The setup revokes application roles' access to pg_net, including the transient
-request headers. pg_net is only a wake-up mechanism: losing its unlogged request
+Hosted pg_net objects may remain owned by supabase_admin, so application-role
+revokes cannot be relied on. The scheduler stores only a method/path-bound HMAC
+signature in transient request headers, accepted for at most two minutes. It never
+places the reusable worker secret in the HTTP queue. Replay can only wake this
+bounded worker during that short window; it cannot select events or recipients. pg_net is only a wake-up mechanism: losing its unlogged request
 queue does not lose business events in the durable delivery table.
 
 The exact provider envelope is stored before contacting Resend. Recovery uses

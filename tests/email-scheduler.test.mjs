@@ -10,6 +10,7 @@ before(async () => {
   db = new PGlite()
   await db.exec(`
     create role anon; create role authenticated; create role service_role;
+    create schema extensions; create function extensions.hmac(text,text,text) returns bytea language sql as $$ select decode(repeat('ab',32),'hex') $$;
     create schema tcc_email; create schema vault; create schema net; create schema cron;
     create table public.email_notification_deliveries(outbox_payload jsonb,status text,available_at timestamptz default now(),locked_until timestamptz);
     create table vault.decrypted_secrets(name text unique,decrypted_secret text);
@@ -39,11 +40,12 @@ after(() => db.close())
 const wake = async () => (await db.query('select tcc_email.wake_worker() as request_id')).rows[0].request_id
 const requests = async () => (await db.query('select * from net.http_request_queue')).rows
 
-test('scheduler wakes the production worker with a private bearer and no business data', async () => {
+test('scheduler wakes the production worker with an expiring signature and no business data', async () => {
   assert.ok(await wake())
   const [request] = await requests()
   assert.equal(request.url,'https://www.tradescraftconnect.com/api/email-notifications/process')
-  assert.match(request.headers.Authorization,/^Bearer isolated-test-/)
+  assert.match(request.headers.Authorization,/^TCC-HMAC [0-9]+:[a-f0-9]{64}$/)
+  assert.equal(JSON.stringify(request).includes('isolated-test-placeholder'),false)
   assert.deepEqual(request.body,{})
   assert.equal(request.timeout_milliseconds,65000)
 })

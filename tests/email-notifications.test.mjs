@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
-import { timingSafeEqual } from 'node:crypto'
+import { createHmac, timingSafeEqual } from 'node:crypto'
 
 const compile = path => ts.transpileModule(readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText
 const compiled = compile('app/lib/emailQueue.ts')
@@ -14,6 +14,8 @@ const content = { subject: 'Application update', heading: 'Test <heading>', mess
 
 // Actual worker and route, simulated database/provider boundaries. No credentials
 // or network access. Real queue SQL/roles/transactions are covered separately.
+const signed = (timestamp = Math.floor(Date.now()/1000), key = 's'.repeat(40), path = '/api/email-notifications/process') => `TCC-HMAC ${timestamp}:${createHmac('sha256', key).update(`POST:${path}:${timestamp}`).digest('hex')}`
+
 function harness() {
   const row = { id: 'delivery', recipient_id: 'member', event_key: 'application_status:event:reviewing', status: 'queued', attempts: 0, first_attempt_at: null, provider_payload: null, outbox_payload: { ...content }, available_at: new Date(0).toISOString(), claim_token: null, locked_until: null }
   const ctx = { rows: [row], row, calls: [], accepted: new Map(), enabled: true, email: 'confirmed@example.invalid', confirmed: true, userMissing: false, profileMissing: false, identityError: false, preferenceError: false, claimError: false, freezeError: false, logError: false, providerStatus: 200, providerName: 'test_error', providerMalformed: false, loseResponse: false }
@@ -57,11 +59,11 @@ function harness() {
   ctx.process = (overrides = {}) => exports.processEmailQueue(ctx.admin, { ...config, ...overrides })
   ctx.render = exports.renderEmail
   ctx.due = () => { row.available_at = new Date(0).toISOString(); row.locked_until = new Date(0).toISOString() }
-  ctx.route = async (env = {}, authorization = 'Bearer ' + 's'.repeat(40)) => {
+  ctx.route = async (env = {}, authorization = signed()) => {
     const result = {}
     const settings = { EMAIL_WORKER_SECRET: 's'.repeat(40), NEXT_PUBLIC_SUPABASE_URL: 'https://test.supabase.invalid', SUPABASE_SERVICE_ROLE_KEY: 'test-service', RESEND_API_KEY: 'test-resend', EMAIL_FROM: config.from, EMAIL_APP_URL: config.origin, ...env }
     vm.runInNewContext(route, { exports: result, process: { env: settings }, Buffer, URL, console: { info() {}, error() {} }, require: name => {
-      if (name === 'node:crypto') return { timingSafeEqual }
+      if (name === 'node:crypto') return { timingSafeEqual, createHmac }
       if (name === 'next/server') return { NextResponse: { json: (body, init) => Response.json(body, init) } }
       if (name === '@supabase/supabase-js') return { createClient: () => ctx.admin }
       if (name.endsWith('/emailQueue')) return { processEmailQueue: exports.processEmailQueue }
@@ -220,3 +222,11 @@ test('legacy browser endpoint is inert and accepts no request-supplied event', a
   const response = await exports.POST(new Request('https://app.example.invalid/api/email-notifications', { method: 'POST', body: JSON.stringify({ eventType:'account_suspension',relatedId:'someone-else' }) }))
   assert.equal(response.status, 202); assert.deepEqual(await response.json(), { queuedByBusinessEvent:true })
 })
+
+ test('signed worker requests reject expired, future, tampered, other-path and raw-secret headers', async () => {
+  const now = Math.floor(Date.now()/1000)
+  for (const auth of [signed(now-121),signed(now+20),signed(now,'wrong-key'),signed(now,'s'.repeat(40),'/other'), 'Bearer '+'s'.repeat(40), 'TCC-HMAC invalid']) {
+    const ctx=harness(); assert.equal((await ctx.route({},auth)).status,401); assert.equal(ctx.calls.length,0)
+  }
+  const ctx=harness(); assert.equal((await ctx.route({},signed(now-60))).status,200)
+ })
