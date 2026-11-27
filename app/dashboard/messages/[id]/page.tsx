@@ -68,7 +68,10 @@ export default function MessageThreadPage() {
     setSending(true); setError('')
     const { error: sendError } = await supabase.from('application_messages').insert({ application_id: id, sender_id: userId, recipient_id: userId, body: cleanBody })
     if (sendError) setError(sendError.message.includes('closed') ? 'Messaging is closed for this application.' : 'Your message did not send. Please try again.')
-    else { setBody(''); await loadMessages(userId) }
+    else {
+      setBody('')
+      await loadMessages(userId)
+    }
     setSending(false)
   }
 

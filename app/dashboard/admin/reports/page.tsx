@@ -66,7 +66,9 @@ export default function SafetyReportsPage() {
     setBusy(report.id); setMessage('')
     const { error } = await supabase.rpc('set_member_suspension', { target_user: report.reported_user_id, suspend: true, admin_reason: reason, suspension_expires_at: expires })
     if (error) setMessage(`Account was not suspended: ${error.message}`)
-    else await review(report, 'resolved', 'Account suspended for 30 days. Report marked resolved.', 'Account suspended for 30 days, but report resolution did not save')
+    else {
+      await review(report, 'resolved', 'Account suspended for 30 days. Report marked resolved.', 'Account suspended for 30 days, but report resolution did not save')
+    }
     setBusy('')
   }
 

@@ -17,18 +17,30 @@ security policies, and storage buckets defined in:
 6. Add these environment variables to the Vercel project:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `RESEND_API_KEY` (only needed for application email notifications)
+   - `SUPABASE_SERVICE_ROLE_KEY` (server only; never prefix with `NEXT_PUBLIC_`)
+   - `EMAIL_APP_URL` (canonical HTTPS origin, no trailing slash)
+   - `EMAIL_WORKER_SECRET` (server only; random, at least 32 characters)
+   - `RESEND_API_KEY`
+   - `EMAIL_FROM` (for example, `TradesCraftConnect <notifications@tradescraftconnect.com>`)
 
 ## Existing TradesCraftConnect project
 
 Do not run the initial schema again on the existing production database. Apply
 only the newer numbered migrations in order:
 
-1. `supabase/migrations/002_profile_verification.sql`
+1. Apply each numbered migration after `001_initial_schema.sql` in order.
 
-Migration 002 adds profile-completion fields, protects license verification
-status from member self-approval, and allows authenticated members to see
-verified certification metadata.
+Migration 010 adds the transactional-email preference and a private delivery
+log used to prevent duplicate sends.
+
+Existing SQL Editor changes may not appear in migration history. Inspect the
+actual schema before applying 010 or any older migration. The live audit found
+the delivery table and preference column already present.
+
+Run `npm run test:email`, `npm run lint`, and `npx tsc --noEmit` before review.
+The email tests simulate provider/extension boundaries and never send real emails.
+Queue database checks execute actual migration SQL in disposable PostgreSQL. See
+`EMAIL_DELIVERY_RUNBOOK.md` for retry/reconciliation behavior and live checks.
 
 Never expose the Supabase service-role key in browser code or commit it to this
 repository.
@@ -89,3 +101,17 @@ test project, then apply the missing safety migrations above. Use one administra
 
 Missing migration/RPC errors must show the access-check retry screen, without
 rendering the dashboard. Local tests do not replace live preview sign-off.
+
+## Durable email queue follow-up
+
+The prepared `20261111013842_durable_email_outbox.sql` migration is additive and
+has not been applied to the existing production project. It requires migration
+010's delivery table and preference column, which already exist in production.
+It adds transactional enqueue triggers and a service-role-only claim function.
+The separate `supabase/setup/email_worker_scheduler.sql` provisions Cron/pg_net
+and a private Vault-backed wake-up function after worker deployment.
+
+Follow the exact rollout order in `EMAIL_DELIVERY_RUNBOOK.md`. Preview shares the
+production database, so this requires a reviewed production change rather than a
+preview-only migration. Do not apply scheduler setup without the matching worker
+secret and production deployment. Keep Auth SMTP configuration separate.
